@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "./db";
 
 export interface AppUser {
-  id: string; // Prisma User.id
-  authId: string; // Supabase auth.users.id
+  id: string;
+  authId: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -11,7 +11,7 @@ export interface AppUser {
 }
 
 /**
- * Get the current authenticated user with their Prisma profile.
+ * Get the current authenticated user with their profile from the User table.
  * Returns null if not logged in or profile not found.
  */
 export async function getUser(): Promise<AppUser | null> {
@@ -22,15 +22,18 @@ export async function getUser(): Promise<AppUser | null> {
 
   if (!authUser) return null;
 
-  const profile = await db.user.findFirst({
-    where: { authId: authUser.id, isActive: true },
-  });
+  const { data: profile } = await db
+    .from("User")
+    .select("id, authId, email, firstName, lastName, role, isActive")
+    .eq("authId", authUser.id)
+    .eq("isActive", true)
+    .single();
 
   if (!profile) return null;
 
   return {
     id: profile.id,
-    authId: profile.authId!,
+    authId: profile.authId,
     email: profile.email,
     firstName: profile.firstName,
     lastName: profile.lastName,
