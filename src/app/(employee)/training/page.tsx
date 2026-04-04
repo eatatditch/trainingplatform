@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,8 +29,8 @@ const sectionIcons: Record<string, any> = {
 };
 
 export default async function TrainingLibraryPage() {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const user = await getUser();
+  const userId = user?.id;
 
   const [sections, completions] = await Promise.all([
     db.section.findMany({

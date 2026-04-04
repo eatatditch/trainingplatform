@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -10,8 +10,8 @@ import { ArrowLeft, Clock, CheckCircle2, FileText, Video, Image as ImageIcon } f
 
 export default async function SectionPage({ params }: { params: Promise<{ sectionSlug: string }> }) {
   const { sectionSlug } = await params;
-  const session = await auth();
-  const userId = session?.user?.id;
+  const user = await getUser();
+  const userId = user?.id;
 
   const section = await db.section.findFirst({
     where: { slug: sectionSlug, isActive: true },

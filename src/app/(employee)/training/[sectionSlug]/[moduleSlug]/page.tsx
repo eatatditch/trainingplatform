@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,8 @@ export default async function ModuleDetailPage({
   params: Promise<{ sectionSlug: string; moduleSlug: string }>;
 }) {
   const { sectionSlug, moduleSlug } = await params;
-  const session = await auth();
-  const userId = session?.user?.id;
+  const user = await getUser();
+  const userId = user?.id;
 
   const module = await db.module.findFirst({
     where: { slug: moduleSlug, section: { slug: sectionSlug }, isActive: true },

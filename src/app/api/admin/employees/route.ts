@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user || !["SUPER_ADMIN", "ADMIN", "MANAGER"].includes((session.user as any).role)) {
+  const user = await getUser();
+  if (!user || !["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user || !["SUPER_ADMIN", "ADMIN"].includes((session.user as any).role)) {
+  const adminUser = await getUser();
+  if (!adminUser || !["SUPER_ADMIN", "ADMIN"].includes(adminUser.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -54,12 +54,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Email already exists" }, { status: 400 });
   }
 
-  const hashedPassword = await bcrypt.hash(data.password || "ditch2024", 12);
+  const supabaseAdmin = await createAdminClient();
+  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    email: data.email,
+    password: data.password || "ditch2024",
+    email_confirm: true,
+  });
 
-  const user = await db.user.create({
+  if (authError) {
+    return NextResponse.json({ error: authError.message }, { status: 400 });
+  }
+
+  const newUser = await db.user.create({
     data: {
+      authId: authData.user.id,
       email: data.email,
-      password: hashedPassword,
       firstName: data.firstName,
       lastName: data.lastName,
       role: data.role || "EMPLOYEE",
@@ -70,5 +79,5 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName });
+  return NextResponse.json({ id: newUser.id, email: newUser.email, firstName: newUser.firstName, lastName: newUser.lastName });
 }

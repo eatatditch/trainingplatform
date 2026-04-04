@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -10,10 +10,10 @@ import { StatCard } from "@/components/ui/stat-card";
 import { BookOpen, CheckCircle2, Clock, AlertTriangle, ClipboardCheck, Target } from "lucide-react";
 
 export default async function ProgressPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  const user = await getUser();
+  if (!user) redirect("/login");
 
-  const userId = session.user.id;
+  const userId = user.id;
 
   const [assignments, completions, quizAttempts, paths] = await Promise.all([
     db.moduleAssignment.findMany({

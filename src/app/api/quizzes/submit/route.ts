@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { quizId, answers } = await request.json();
 
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   // Check retry limit
   if (quiz.retryLimit > 0) {
     const attemptCount = await db.quizAttempt.count({
-      where: { userId: session.user.id, quizId },
+      where: { userId: user.id, quizId },
     });
     if (attemptCount >= quiz.retryLimit) {
       return NextResponse.json({ error: "Max attempts reached" }, { status: 400 });
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   const attempt = await db.quizAttempt.create({
     data: {
       quizId,
-      userId: session.user.id,
+      userId: user.id,
       score,
       passed,
       answers: answers as any,

@@ -1,33 +1,41 @@
-import { auth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
+import { NextResponse, type NextRequest } from "next/server";
 
-export default auth((req) => {
-  const { pathname } = req.nextUrl;
-  const isLoggedIn = !!req.auth;
-  const userRole = (req.auth?.user as any)?.role;
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-  // Public routes
-  if (pathname === "/login" || pathname.startsWith("/api/auth")) {
-    if (isLoggedIn && pathname === "/login") {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+  // Public routes — no auth required
+  if (
+    pathname === "/login" ||
+    pathname.startsWith("/api/auth") ||
+    pathname === "/unauthorized"
+  ) {
+    // Refresh session cookies even on public routes
+    const { user, supabaseResponse } = await updateSession(request);
+
+    // Redirect logged-in users away from login
+    if (user && pathname === "/login") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
-    return NextResponse.next();
+
+    return supabaseResponse;
   }
 
-  // Protected routes
-  if (!isLoggedIn) {
-    return NextResponse.redirect(new URL("/login", req.url));
+  // All other routes require auth
+  const { user, supabaseResponse } = await updateSession(request);
+
+  if (!user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
 
-  // Admin routes
-  if (pathname.startsWith("/admin")) {
-    if (!["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(userRole)) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-  }
+  // Note: admin role checks are handled at the page/API level via
+  // requireRole() because middleware can't query the Prisma profile.
+  // The middleware only ensures a valid Supabase session exists.
 
-  return NextResponse.next();
-});
+  return supabaseResponse;
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],

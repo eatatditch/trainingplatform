@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -18,11 +18,11 @@ import {
 } from "lucide-react";
 
 export default async function DashboardPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  const user = await getUser();
+  if (!user) redirect("/login");
 
-  const userId = session.user.id;
-  const firstName = (session.user as any).firstName;
+  const userId = user.id;
+  const firstName = user.firstName;
 
   const [assignments, completions, quizAttempts, announcements, recentModules] = await Promise.all([
     db.moduleAssignment.findMany({

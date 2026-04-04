@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user || !["SUPER_ADMIN", "ADMIN", "MANAGER"].includes((session.user as any).role)) {
+  const user = await getUser();
+  if (!user || !["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: data.userId,
         moduleId: data.moduleId,
-        assignedById: session.user.id,
+        assignedById: user.id,
         isRequired: data.isRequired || false,
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
       },
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
           data: {
             userId: data.userId,
             moduleId: pm.moduleId,
-            assignedById: session.user.id,
+            assignedById: user.id,
             isRequired: pm.isRequired,
             dueDate: data.dueDate ? new Date(data.dueDate) : null,
           },

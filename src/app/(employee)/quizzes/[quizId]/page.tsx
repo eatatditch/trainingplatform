@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -7,8 +7,8 @@ import { QuizTaker } from "@/components/training/quiz-taker";
 
 export default async function TakeQuizPage({ params }: { params: Promise<{ quizId: string }> }) {
   const { quizId } = await params;
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  const user = await getUser();
+  if (!user) redirect("/login");
 
   const quiz = await db.quiz.findUnique({
     where: { id: quizId },
@@ -21,7 +21,7 @@ export default async function TakeQuizPage({ params }: { params: Promise<{ quizI
   if (!quiz) notFound();
 
   const attempts = await db.quizAttempt.findMany({
-    where: { userId: session.user.id, quizId },
+    where: { userId: user.id, quizId },
   });
 
   const canTake = quiz.retryLimit === 0 || attempts.length < quiz.retryLimit;

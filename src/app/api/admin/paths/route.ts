@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function GET() {
@@ -14,8 +14,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user || !["SUPER_ADMIN", "ADMIN"].includes((session.user as any).role)) {
+  const user = await getUser();
+  if (!user || !["SUPER_ADMIN", "ADMIN"].includes(user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -127,7 +127,7 @@ export function AdminSidebar({ user }: SidebarProps) {
             </div>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.href = "/login"; }}
             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
           >
             <LogOut className="w-4 h-4" />

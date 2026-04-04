@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user || !["SUPER_ADMIN", "ADMIN", "MANAGER"].includes((session.user as any).role)) {
+  const currentUser = await getUser();
+  if (!currentUser || !["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(currentUser.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   const { id } = await params;
-  const user = await db.user.findUnique({
+  const employee = await db.user.findUnique({
     where: { id },
     select: {
       id: true, email: true, firstName: true, lastName: true, role: true,
@@ -22,18 +22,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     },
   });
 
-  if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(user);
+  if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(employee);
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user || !["SUPER_ADMIN", "ADMIN"].includes((session.user as any).role)) {
+  const adminUser = await getUser();
+  if (!adminUser || !["SUPER_ADMIN", "ADMIN"].includes(adminUser.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   const { id } = await params;
   const data = await request.json();
+
+  if (data.password) {
+    const existingUser = await db.user.findUnique({ where: { id }, select: { authId: true } });
+    if (existingUser?.authId) {
+      const supabaseAdmin = await createAdminClient();
+      await supabaseAdmin.auth.admin.updateUserById(existingUser.authId, { password: data.password });
+    }
+  }
 
   const updateData: any = {};
   if (data.firstName) updateData.firstName = data.firstName;
@@ -43,16 +51,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (data.location !== undefined) updateData.location = data.location;
   if (data.phone !== undefined) updateData.phone = data.phone;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
-  if (data.password) updateData.password = await bcrypt.hash(data.password, 12);
 
-  const user = await db.user.update({ where: { id }, data: updateData });
+  const updatedUser = await db.user.update({ where: { id }, data: updateData });
 
-  return NextResponse.json({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName });
+  return NextResponse.json({ id: updatedUser.id, email: updatedUser.email, firstName: updatedUser.firstName, lastName: updatedUser.lastName });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user || !["SUPER_ADMIN"].includes((session.user as any).role)) {
+  const deleteUser = await getUser();
+  if (!deleteUser || !["SUPER_ADMIN"].includes(deleteUser.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

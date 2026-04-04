@@ -47,8 +47,8 @@ enum AnnouncementPriority {
 
 model User {
   id        String   @id @default(cuid())
+  authId    String?  @unique // Supabase auth.users.id
   email     String   @unique
-  password  String
   firstName String
   lastName  String
   role      UserRole @default(EMPLOYEE)
@@ -60,12 +60,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  quizAttempts       QuizAttempt[]
-  userTrainingPaths  UserTrainingPath[]
-  moduleAssignments  ModuleAssignment[]
-  moduleCompletions  ModuleCompletion[]
-  announcements      Announcement[]       @relation("AnnouncementAuthor")
-  assignedModules    ModuleAssignment[]   @relation("AssignedByUser")
+  quizAttempts  QuizAttempt[]
+  trainingPaths UserTrainingPath[]
+  assignments   ModuleAssignment[]
+  completions   ModuleCompletion[]
+  announcements Announcement[]       @relation("AnnouncementAuthor")
+  assignedBy    ModuleAssignment[]   @relation("AssignedByUser")
 
   @@index([email])
   @@index([role])
@@ -110,13 +110,13 @@ model Module {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  section             Section              @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  assets              ModuleAsset[]
-  quizzes             Quiz[]
-  trainingPathModules TrainingPathModule[]
-  moduleAssignments   ModuleAssignment[]
-  moduleCompletions   ModuleCompletion[]
-  searchIndexes       SearchIndex[]
+  section       Section              @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  assets        ModuleAsset[]
+  quiz          Quiz?
+  pathModules   TrainingPathModule[]
+  assignments   ModuleAssignment[]
+  completions   ModuleCompletion[]
+  searchIndexes SearchIndex[]
 
   @@index([sectionId])
   @@index([slug])
@@ -147,11 +147,11 @@ model ModuleAsset {
 
 model Quiz {
   id           String   @id @default(cuid())
-  moduleId     String
+  moduleId     String   @unique
   title        String
   description  String?
   passingScore Int      @default(70)
-  retryLimit   Int?
+  retryLimit   Int      @default(0)
   isRequired   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -207,15 +207,14 @@ model TrainingPath {
   id          String    @id @default(cuid())
   title       String
   description String?
-  targetRole  UserRole?
+  targetRole  String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  trainingPathModules TrainingPathModule[]
-  userTrainingPaths   UserTrainingPath[]
+  modules     TrainingPathModule[]
+  assignments UserTrainingPath[]
 
-  @@index([targetRole])
   @@index([isActive])
 }
 
@@ -258,19 +257,19 @@ model UserTrainingPath {
 // ─── ModuleAssignment ────────────────────────────────────────────────────────
 
 model ModuleAssignment {
-  id          String           @id @default(cuid())
-  userId      String
-  moduleId    String
-  assignedBy  String?
-  isRequired  Boolean          @default(true)
-  dueDate     DateTime?
-  assignedAt  DateTime         @default(now())
-  completedAt DateTime?
-  status      AssignmentStatus @default(NOT_STARTED)
+  id            String           @id @default(cuid())
+  userId        String
+  moduleId      String
+  assignedById  String?
+  isRequired    Boolean          @default(true)
+  dueDate       DateTime?
+  assignedAt    DateTime         @default(now())
+  completedAt   DateTime?
+  status        AssignmentStatus @default(NOT_STARTED)
 
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  assigner User?  @relation("AssignedByUser", fields: [assignedBy], references: [id], onDelete: SetNull)
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module       Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  assignedByUser User?  @relation("AssignedByUser", fields: [assignedById], references: [id], onDelete: SetNull)
 
   @@unique([userId, moduleId])
   @@index([userId])
@@ -298,22 +297,22 @@ model ModuleCompletion {
 // ─── Announcement ────────────────────────────────────────────────────────────
 
 model Announcement {
-  id        String               @id @default(cuid())
-  title     String
-  content   String               @db.Text
-  priority  AnnouncementPriority @default(NORMAL)
-  isActive  Boolean              @default(true)
-  createdBy String
-  expiresAt DateTime?
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  id          String               @id @default(cuid())
+  title       String
+  content     String               @db.Text
+  priority    AnnouncementPriority @default(NORMAL)
+  isActive    Boolean              @default(true)
+  createdById String
+  expiresAt   DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
-  author User @relation("AnnouncementAuthor", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdByUser User @relation("AnnouncementAuthor", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([isActive])
   @@index([priority])
   @@index([expiresAt])
-  @@index([createdBy])
+  @@index([createdById])
 }
 
 // ─── SearchIndex ─────────────────────────────────────────────────────────────
