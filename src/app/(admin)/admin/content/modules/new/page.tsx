@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Upload, ClipboardCheck } from "lucide-react";
 import Link from "next/link";
 
 function NewModuleForm() {
@@ -14,6 +14,7 @@ function NewModuleForm() {
   const searchParams = useSearchParams();
   const sectionId = searchParams.get("sectionId") || "";
   const [sections, setSections] = useState<{ id: string; title: string }[]>([]);
+  const [quizzes, setQuizzes] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     sectionId,
@@ -23,10 +24,17 @@ function NewModuleForm() {
     estimatedMinutes: "",
     isRequired: false,
     tags: "",
+    quizId: "",
   });
 
   useEffect(() => {
-    fetch("/api/admin/sections").then((r) => r.json()).then(setSections);
+    Promise.all([
+      fetch("/api/admin/sections").then((r) => r.json()),
+      fetch("/api/admin/quizzes").then((r) => r.json()),
+    ]).then(([secs, qz]) => {
+      setSections(secs || []);
+      setQuizzes(qz || []);
+    });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,17 +45,36 @@ function NewModuleForm() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...form,
+        sectionId: form.sectionId,
+        title: form.title,
+        description: form.description,
+        content: form.content,
         estimatedMinutes: form.estimatedMinutes ? parseInt(form.estimatedMinutes) : null,
+        isRequired: form.isRequired,
         tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
       }),
     });
 
     if (res.ok) {
-      router.push("/admin/content");
+      const newModule = await res.json();
+
+      // Attach quiz if selected
+      if (form.quizId) {
+        await fetch(`/api/admin/quizzes/${form.quizId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ moduleId: newModule.id }),
+        });
+      }
+
+      // Redirect to module editor for file uploads etc
+      router.push(`/admin/content/modules/${newModule.id}`);
     }
     setSaving(false);
   };
+
+  // Only show quizzes not attached to another module
+  const availableQuizzes = quizzes.filter((q: any) => !q.moduleId);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -124,10 +151,32 @@ function NewModuleForm() {
             <span className="text-sm text-gray-700">Mark as Required</span>
           </label>
 
+          {/* Quiz Selection */}
+          <div className="pt-4 border-t">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <ClipboardCheck className="w-4 h-4" /> Attach Quiz (optional)
+            </label>
+            <select
+              value={form.quizId}
+              onChange={(e) => setForm({ ...form, quizId: e.target.value })}
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-ditch-orange/50 focus:border-ditch-orange bg-white"
+            >
+              <option value="">No quiz</option>
+              {availableQuizzes.map((q: any) => (
+                <option key={q.id} value={q.id}>
+                  {q.title} ({(q.questions || []).length} questions)
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              You can attach, detach, or change the quiz later from the module editor. Create new quizzes in the Quiz Builder.
+            </p>
+          </div>
+
           <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
             <Upload className="w-5 h-5 text-gray-400 flex-shrink-0" />
             <p className="text-sm text-gray-500">
-              File attachments can be added after creating the module.
+              Videos, documents, and images can be uploaded after creating the module.
             </p>
           </div>
 
