@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -10,26 +9,65 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [debug, setDebug] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setDebug("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const supabase = createClient();
 
-    if (authError) {
-      setError("Invalid email or password");
+      // Check if Supabase client is configured
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!url) {
+        setError("Configuration error: Supabase URL not set");
+        setDebug("NEXT_PUBLIC_SUPABASE_URL is undefined");
+        setLoading(false);
+        return;
+      }
+
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        setError("Invalid email or password");
+        setDebug(`Auth error: ${authError.message} (${authError.status})`);
+        setLoading(false);
+        return;
+      }
+
+      if (!data.session) {
+        setError("Login succeeded but no session returned");
+        setDebug("data.session is null — check Supabase project config");
+        setLoading(false);
+        return;
+      }
+
+      // Session exists — show debug info before redirecting
+      setDebug(`Login OK! User: ${data.user?.email}, Session: ${data.session.access_token.substring(0, 20)}...`);
+
+      // Verify we can reach the dashboard API
+      const checkRes = await fetch("/api/auth/check", { credentials: "include" });
+      const checkData = await checkRes.json().catch(() => null);
+
+      if (checkRes.ok && checkData?.user) {
+        setDebug(`Session verified server-side! Redirecting...`);
+        window.location.href = "/dashboard";
+      } else {
+        setError("Login succeeded but server can't read your session");
+        setDebug(`Server auth check: ${checkRes.status} — ${JSON.stringify(checkData)}`);
+        setLoading(false);
+      }
+    } catch (err: any) {
+      setError("An unexpected error occurred");
+      setDebug(`Exception: ${err.message}`);
       setLoading(false);
-    } else {
-      // Use full page navigation to ensure auth cookies are sent
-      window.location.href = "/dashboard";
     }
   };
 
@@ -49,6 +87,11 @@ export default function LoginPage() {
             {error && (
               <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg text-center">
                 {error}
+              </div>
+            )}
+            {debug && (
+              <div className="bg-blue-50 text-blue-700 text-xs p-3 rounded-lg font-mono break-all">
+                {debug}
               </div>
             )}
             <Input
