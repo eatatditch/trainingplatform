@@ -89,7 +89,7 @@ export default async function QuizzesPage() {
                     {hasPassed && <Badge variant="completed">Passed</Badge>}
                   </div>
                   <p className="text-sm text-gray-500 mt-0.5">
-                    {quiz.module?.section?.title} · {quiz.module?.title}
+                    {quiz.module ? `${quiz.module.section?.title || ""} · ${quiz.module.title}` : "Standalone Quiz"}
                   </p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
                     <span>{(quiz.questions || []).length} questions</span>

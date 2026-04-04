@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const { data: quiz, error: quizError } = await db
     .from("Quiz")
     .insert({
-      moduleId: data.moduleId,
+      moduleId: data.moduleId || null,
       title: data.title,
       description: data.description || "",
       passingScore: data.passingScore || 70,

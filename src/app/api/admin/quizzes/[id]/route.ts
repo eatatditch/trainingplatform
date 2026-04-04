@@ -11,16 +11,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const data = await request.json();
 
-  // Update quiz metadata
+  // Build update payload — only include provided fields
+  const updatePayload: any = {};
+  if (data.title !== undefined) updatePayload.title = data.title;
+  if (data.description !== undefined) updatePayload.description = data.description;
+  if (data.passingScore !== undefined) updatePayload.passingScore = data.passingScore;
+  if (data.retryLimit !== undefined) updatePayload.retryLimit = data.retryLimit;
+  if (data.isRequired !== undefined) updatePayload.isRequired = data.isRequired;
+  if ("moduleId" in data) updatePayload.moduleId = data.moduleId; // null = detach from module
+
   const { data: quiz, error } = await db
     .from("Quiz")
-    .update({
-      title: data.title,
-      description: data.description,
-      passingScore: data.passingScore,
-      retryLimit: data.retryLimit,
-      isRequired: data.isRequired,
-    })
+    .update(updatePayload)
     .eq("id", id)
     .select()
     .single();

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Trash2, FileText, X, Video, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Save, Trash2, FileText, X, Video, Image as ImageIcon, ClipboardCheck, Link2, Unlink } from "lucide-react";
 import Link from "next/link";
 import { FileUpload } from "@/components/admin/file-upload";
 
@@ -26,6 +26,8 @@ export default function EditModulePage({ params }: { params: Promise<{ id: strin
   const [saving, setSaving] = useState(false);
   const [sections, setSections] = useState<{ id: string; title: string }[]>([]);
   const [assets, setAssets] = useState<ModuleAsset[]>([]);
+  const [allQuizzes, setAllQuizzes] = useState<any[]>([]);
+  const [attachedQuiz, setAttachedQuiz] = useState<any>(null);
   const [form, setForm] = useState({
     sectionId: "",
     title: "",
@@ -45,7 +47,8 @@ export default function EditModulePage({ params }: { params: Promise<{ id: strin
     Promise.all([
       fetchModule(),
       fetch("/api/admin/sections").then((r) => r.json()),
-    ]).then(([mod, secs]) => {
+      fetch("/api/admin/quizzes").then((r) => r.json()),
+    ]).then(([mod, secs, quizzes]) => {
       setForm({
         sectionId: mod.sectionId || "",
         title: mod.title,
@@ -58,9 +61,37 @@ export default function EditModulePage({ params }: { params: Promise<{ id: strin
       });
       setAssets(mod.assets || []);
       setSections(secs);
+      setAllQuizzes(quizzes || []);
+      setAttachedQuiz(mod.quiz || null);
       setLoading(false);
     });
   }, [id]);
+
+  const handleAttachQuiz = async (quizId: string) => {
+    if (!quizId) return;
+    await fetch(`/api/admin/quizzes/${quizId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ moduleId: id }),
+    });
+    // Refresh
+    const mod = await fetchModule();
+    setAttachedQuiz(mod.quiz || null);
+    const quizzes = await fetch("/api/admin/quizzes").then((r) => r.json());
+    setAllQuizzes(quizzes || []);
+  };
+
+  const handleDetachQuiz = async () => {
+    if (!attachedQuiz) return;
+    await fetch(`/api/admin/quizzes/${attachedQuiz.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ moduleId: null }),
+    });
+    setAttachedQuiz(null);
+    const quizzes = await fetch("/api/admin/quizzes").then((r) => r.json());
+    setAllQuizzes(quizzes || []);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -197,6 +228,58 @@ export default function EditModulePage({ params }: { params: Promise<{ id: strin
               />
               <span className="text-sm text-gray-700">Active</span>
             </label>
+          </div>
+
+          {/* Quiz Attachment */}
+          <div className="pt-4 border-t">
+            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <ClipboardCheck className="w-4 h-4" /> Attached Quiz
+            </h3>
+
+            {attachedQuiz ? (
+              <div className="flex items-center justify-between p-3 bg-ditch-orange/5 rounded-lg border border-ditch-orange/20">
+                <div className="flex items-center gap-3">
+                  <ClipboardCheck className="w-5 h-5 text-ditch-orange" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{attachedQuiz.title}</p>
+                    <p className="text-xs text-gray-500">
+                      {(attachedQuiz.questions || []).length} questions · Pass: {attachedQuiz.passingScore}%
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleDetachQuiz}
+                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 px-2 py-1 hover:bg-red-50 rounded transition-colors"
+                >
+                  <Unlink className="w-3 h-3" /> Detach
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-400">No quiz attached. Select one to link or create a new quiz in the Quiz Builder.</p>
+                <div className="flex gap-2">
+                  <select
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white"
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) handleAttachQuiz(e.target.value);
+                    }}
+                  >
+                    <option value="">Select a quiz to attach...</option>
+                    {allQuizzes
+                      .filter((q: any) => !q.moduleId || q.moduleId === id)
+                      .map((q: any) => (
+                        <option key={q.id} value={q.id}>
+                          {q.title} ({(q.questions || []).length} questions)
+                        </option>
+                      ))}
+                  </select>
+                  <Link href="/admin/quizzes" className="px-3 py-2 text-sm text-ditch-orange hover:bg-ditch-orange/10 rounded-lg transition-colors whitespace-nowrap">
+                    + New Quiz
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Training Videos */}

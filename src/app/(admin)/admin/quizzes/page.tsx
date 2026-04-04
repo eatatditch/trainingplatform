@@ -162,7 +162,7 @@ export default function QuizzesPage() {
   };
 
   const getModuleName = (moduleId: string | null) => {
-    if (!moduleId) return "Unlinked";
+    if (!moduleId) return "Standalone";
     const mod = modules.find((m) => m.id === moduleId);
     return mod ? mod.title : "Unknown";
   };
