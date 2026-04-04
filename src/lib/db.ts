@@ -1,10 +1,23 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+let _db: SupabaseClient | null = null;
 
 // Server-side Supabase client with service role key for DB operations.
-// This bypasses RLS — use only in server components and API routes.
-export const db = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
+// Lazy-initialized to avoid errors during build when env vars aren't available.
+export function getDb(): SupabaseClient {
+  if (!_db) {
+    _db = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+  }
+  return _db;
+}
+
+// Keep `db` export for backward compatibility — uses a Proxy to lazy-init.
+export const db = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    return (getDb() as any)[prop];
+  },
 });
