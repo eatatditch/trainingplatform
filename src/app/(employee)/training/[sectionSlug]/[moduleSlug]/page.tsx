@@ -126,14 +126,22 @@ export default async function ModuleDetailPage({
           </h2>
           <div className="space-y-4">
             {videos.map((video: any) => (
-              <div key={video.id} className="bg-gray-900 rounded-xl aspect-video flex items-center justify-center">
-                <div className="text-center text-white">
-                  <Video className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm opacity-70">{video.fileName}</p>
-                  <a href={video.fileUrl} target="_blank" className="text-ditch-orange text-sm hover:underline mt-1 inline-block">
-                    Open Video
-                  </a>
-                </div>
+              <div key={video.id} className="rounded-xl overflow-hidden">
+                <video
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-xl bg-gray-900"
+                  poster=""
+                >
+                  <source src={video.fileUrl} type={
+                    video.fileName?.endsWith(".mp4") ? "video/mp4" :
+                    video.fileName?.endsWith(".webm") ? "video/webm" :
+                    video.fileName?.endsWith(".mov") ? "video/quicktime" :
+                    "video/mp4"
+                  } />
+                  Your browser does not support the video tag.
+                </video>
+                <p className="text-sm text-gray-500 mt-2">{video.fileName}</p>
               </div>
             ))}
           </div>

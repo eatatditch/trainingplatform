@@ -1,27 +1,48 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, Video, FileText } from "lucide-react";
 
 interface FileUploadProps {
   moduleId?: string;
   onUploadComplete: (asset: any) => void;
   accept?: string;
   fileType?: string;
+  label?: string;
+  hint?: string;
 }
 
-export function FileUpload({ moduleId, onUploadComplete, accept, fileType = "DOCUMENT" }: FileUploadProps) {
+export function FileUpload({
+  moduleId,
+  onUploadComplete,
+  accept,
+  fileType = "DOCUMENT",
+  label,
+  hint,
+}: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const detectFileType = (file: File): string => {
+    if (fileType !== "DOCUMENT") return fileType;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (["mp4", "mov", "avi", "webm", "mkv"].includes(ext || "")) return "VIDEO";
+    if (["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext || "")) return "IMAGE";
+    if (["pdf"].includes(ext || "")) return "PDF";
+    if (file.type.startsWith("video/")) return "VIDEO";
+    if (file.type.startsWith("image/")) return "IMAGE";
+    return "DOCUMENT";
+  };
+
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
+      const detectedType = detectFileType(file);
       const formData = new FormData();
       formData.append("file", file);
       if (moduleId) formData.append("moduleId", moduleId);
-      formData.append("fileType", fileType);
+      formData.append("fileType", detectedType);
 
       const res = await fetch("/api/admin/upload", {
         method: "POST",
@@ -51,6 +72,9 @@ export function FileUpload({ moduleId, onUploadComplete, accept, fileType = "DOC
     if (file) handleUpload(file);
   };
 
+  const isVideo = fileType === "VIDEO" || accept === "video/*";
+  const Icon = isVideo ? Video : Upload;
+
   return (
     <div
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -75,11 +99,11 @@ export function FileUpload({ moduleId, onUploadComplete, accept, fileType = "DOC
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2">
-          <Upload className="w-8 h-8 text-gray-400" />
+          <Icon className="w-8 h-8 text-gray-400" />
           <p className="text-sm text-gray-600">
-            <span className="text-ditch-orange font-medium">Click to upload</span> or drag and drop
+            <span className="text-ditch-orange font-medium">{label || "Click to upload"}</span> or drag and drop
           </p>
-          <p className="text-xs text-gray-400">PDF, DOC, images, or video</p>
+          <p className="text-xs text-gray-400">{hint || "PDF, DOC, images, or video"}</p>
         </div>
       )}
     </div>

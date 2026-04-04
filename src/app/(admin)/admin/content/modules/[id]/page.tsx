@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Trash2, FileText, X } from "lucide-react";
+import { ArrowLeft, Save, Trash2, FileText, X, Video, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { FileUpload } from "@/components/admin/file-upload";
 
@@ -199,19 +199,67 @@ export default function EditModulePage({ params }: { params: Promise<{ id: strin
             </label>
           </div>
 
-          {/* File Attachments Section */}
+          {/* Training Videos */}
           <div className="pt-4 border-t">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">File Attachments</h3>
+            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <Video className="w-4 h-4" /> Training Videos
+            </h3>
 
-            {assets.length > 0 && (
+            {assets.filter((a) => a.fileType === "VIDEO").length > 0 && (
+              <div className="space-y-3 mb-4">
+                {assets.filter((a) => a.fileType === "VIDEO").map((asset) => (
+                  <div key={asset.id} className="rounded-lg border overflow-hidden">
+                    <video controls preload="metadata" className="w-full bg-gray-900" style={{ maxHeight: "300px" }}>
+                      <source src={asset.fileUrl} />
+                    </video>
+                    <div className="flex items-center justify-between p-2 bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-700">{asset.fileName}</span>
+                        {asset.fileSize > 0 && (
+                          <span className="text-xs text-gray-400">{formatFileSize(asset.fileSize)}</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteAsset(asset.id)}
+                        className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <FileUpload
+              moduleId={id}
+              onUploadComplete={handleUploadComplete}
+              accept="video/*"
+              fileType="VIDEO"
+              label="Upload Video"
+              hint="MP4, MOV, WebM — max 500MB"
+            />
+          </div>
+
+          {/* Documents & Files */}
+          <div className="pt-4 border-t">
+            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <FileText className="w-4 h-4" /> Documents & Files
+            </h3>
+
+            {assets.filter((a) => a.fileType !== "VIDEO").length > 0 && (
               <div className="space-y-2 mb-4">
-                {assets.map((asset) => (
+                {assets.filter((a) => a.fileType !== "VIDEO").map((asset) => (
                   <div
                     key={asset.id}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border"
                   >
                     <div className="flex items-center gap-3">
-                      <FileText className="w-4 h-4 text-gray-400" />
+                      {asset.fileType === "IMAGE" ? (
+                        <ImageIcon className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <FileText className="w-4 h-4 text-gray-400" />
+                      )}
                       <div>
                         <a
                           href={asset.fileUrl}
@@ -240,7 +288,14 @@ export default function EditModulePage({ params }: { params: Promise<{ id: strin
               </div>
             )}
 
-            <FileUpload moduleId={id} onUploadComplete={handleUploadComplete} />
+            <FileUpload
+              moduleId={id}
+              onUploadComplete={handleUploadComplete}
+              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif"
+              fileType="DOCUMENT"
+              label="Upload Document or Image"
+              hint="PDF, DOC, PNG, JPG"
+            />
           </div>
 
           <div className="flex gap-3 justify-end pt-4 border-t">
