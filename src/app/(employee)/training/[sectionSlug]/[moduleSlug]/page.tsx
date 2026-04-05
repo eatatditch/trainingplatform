@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { formatDuration, formatDate } from "@/lib/utils";
 import { ArrowLeft, Clock, FileText, Download, Video, Image as ImageIcon, CheckCircle2, ClipboardCheck, Printer } from "lucide-react";
 import { MarkCompleteButton } from "@/components/training/mark-complete-button";
+import { ModuleContent } from "@/components/training/module-content";
 
 export default async function ModuleDetailPage({
   params,
@@ -108,15 +109,8 @@ export default async function ModuleDetailPage({
         </Card>
       )}
 
-      {/* Content */}
-      {module.content && (
-        <Card>
-          <div
-            className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700"
-            dangerouslySetInnerHTML={{ __html: module.content }}
-          />
-        </Card>
-      )}
+      {/* Structured Content */}
+      <ModuleContent moduleId={module.id} fallbackHtml={module.content} />
 
       {/* Videos */}
       {videos.length > 0 && (
