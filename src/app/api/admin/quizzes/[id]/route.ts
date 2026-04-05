@@ -19,6 +19,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (data.retryLimit !== undefined) updatePayload.retryLimit = data.retryLimit;
   if (data.isRequired !== undefined) updatePayload.isRequired = data.isRequired;
   if ("moduleId" in data) updatePayload.moduleId = data.moduleId; // null = detach from module
+  if ("sectionId" in data) updatePayload.sectionId = data.sectionId; // null = detach from section
 
   const { data: quiz, error } = await db
     .from("Quiz")

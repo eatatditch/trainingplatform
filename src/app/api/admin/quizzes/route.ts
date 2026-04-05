@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     .from("Quiz")
     .insert({
       moduleId: data.moduleId || null,
+      sectionId: data.sectionId || null,
       title: data.title,
       description: data.description || "",
       passingScore: data.passingScore || 70,

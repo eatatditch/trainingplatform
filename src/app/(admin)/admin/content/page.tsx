@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useRouter } from "next/navigation";
 import {
   Plus, Edit2, Trash2, BookOpen, ChevronRight, GripVertical,
-  Eye, EyeOff, FileText,
+  Eye, EyeOff, FileText, ClipboardCheck, Unlink,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -39,6 +39,7 @@ interface Module {
 
 export default function ContentManagerPage() {
   const [sections, setSections] = useState<Section[]>([]);
+  const [allQuizzes, setAllQuizzes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
@@ -46,14 +47,41 @@ export default function ContentManagerPage() {
   const router = useRouter();
 
   useEffect(() => {
-    fetchSections();
+    fetchData();
   }, []);
 
-  const fetchSections = async () => {
-    const res = await fetch("/api/admin/sections");
-    const data = await res.json();
-    setSections(data);
+  const fetchData = async () => {
+    const [secRes, quizRes] = await Promise.all([
+      fetch("/api/admin/sections"),
+      fetch("/api/admin/quizzes"),
+    ]);
+    setSections(await secRes.json());
+    setAllQuizzes(await quizRes.json());
     setLoading(false);
+  };
+
+  const fetchSections = fetchData;
+
+  const getQuizForSection = (sectionId: string) => {
+    return allQuizzes.find((q: any) => q.sectionId === sectionId);
+  };
+
+  const handleAttachQuizToSection = async (sectionId: string, quizId: string) => {
+    await fetch(`/api/admin/quizzes/${quizId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectionId, moduleId: null }),
+    });
+    fetchData();
+  };
+
+  const handleDetachQuizFromSection = async (quizId: string) => {
+    await fetch(`/api/admin/quizzes/${quizId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectionId: null }),
+    });
+    fetchData();
   };
 
   const handleSaveSection = async () => {
@@ -207,6 +235,56 @@ export default function ContentManagerPage() {
                     </Link>
                   ))}
                 </div>
+              </div>
+
+              {/* Section Quiz */}
+              <div className="border-t border-gray-100 pt-4 mt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ClipboardCheck className="w-4 h-4 text-ditch-orange" />
+                  <span className="text-sm font-medium text-gray-500">Section Quiz</span>
+                </div>
+                {(() => {
+                  const quiz = getQuizForSection(section.id);
+                  if (quiz) {
+                    return (
+                      <div className="flex items-center justify-between p-3 bg-ditch-orange/5 rounded-lg border border-ditch-orange/20">
+                        <div className="flex items-center gap-3">
+                          <ClipboardCheck className="w-5 h-5 text-ditch-orange" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{quiz.title}</p>
+                            <p className="text-xs text-gray-500">{(quiz.questions || []).length} questions · Pass: {quiz.passingScore}%</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDetachQuizFromSection(quiz.id)}
+                          className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 px-2 py-1 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Unlink className="w-3 h-3" /> Detach
+                        </button>
+                      </div>
+                    );
+                  }
+                  const availableQuizzes = allQuizzes.filter((q: any) => !q.sectionId && !q.moduleId);
+                  return (
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white"
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) handleAttachQuizToSection(section.id, e.target.value);
+                        }}
+                      >
+                        <option value="">Attach a quiz to this section...</option>
+                        {availableQuizzes.map((q: any) => (
+                          <option key={q.id} value={q.id}>{q.title} ({(q.questions || []).length} questions)</option>
+                        ))}
+                      </select>
+                      <Link href="/admin/quizzes" className="px-3 py-2 text-sm text-ditch-orange hover:bg-ditch-orange/10 rounded-lg transition-colors whitespace-nowrap">
+                        + New
+                      </Link>
+                    </div>
+                  );
+                })()}
               </div>
             </Card>
           ))}

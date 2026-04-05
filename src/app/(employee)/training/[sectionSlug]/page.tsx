@@ -5,17 +5,18 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import { formatDuration, calculatePercentage } from "@/lib/utils";
-import { ArrowLeft, Clock, CheckCircle2, FileText, Video, Image as ImageIcon } from "lucide-react";
+import { formatDuration, formatDate } from "@/lib/utils";
+import { ArrowLeft, Clock, CheckCircle2, FileText, Video, Image as ImageIcon, ClipboardCheck, Lock } from "lucide-react";
 
 export default async function SectionPage({ params }: { params: Promise<{ sectionSlug: string }> }) {
   const { sectionSlug } = await params;
   const user = await getUser();
   const userId = user?.id;
 
+  // Fetch section with modules (no quiz on module anymore)
   const { data: sectionData } = await db
     .from("Section")
-    .select("*, modules:Module(*, assets:ModuleAsset(*), quiz:Quiz(*))")
+    .select("*, modules:Module(*, assets:ModuleAsset(*))")
     .eq("slug", sectionSlug)
     .eq("isActive", true)
     .single();
@@ -29,6 +30,15 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
       .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
   };
 
+  // Fetch section-level quiz
+  const { data: sectionQuiz } = await db
+    .from("Quiz")
+    .select("*, questions:QuizQuestion(*)")
+    .eq("sectionId", sectionData.id)
+    .limit(1)
+    .maybeSingle();
+
+  // Fetch completions
   const completions = userId
     ? await (async () => {
         const moduleIds = section.modules.map((m: any) => m.id);
@@ -40,6 +50,20 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
 
   const completedIds = new Set(completions.map((c: any) => c.moduleId));
   const completedCount = section.modules.filter((m: any) => completedIds.has(m.id)).length;
+  const allModulesComplete = completedCount === section.modules.length && section.modules.length > 0;
+
+  // Fetch quiz attempts if quiz exists
+  let quizAttempts: any[] = [];
+  if (userId && sectionQuiz) {
+    const { data: attempts } = await db
+      .from("QuizAttempt")
+      .select("*")
+      .eq("userId", userId)
+      .eq("quizId", sectionQuiz.id)
+      .order("completedAt", { ascending: false });
+    quizAttempts = attempts || [];
+  }
+  const hasPassed = quizAttempts.some((a: any) => a.passed);
 
   return (
     <div className="space-y-6">
@@ -63,6 +87,7 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
         </div>
       )}
 
+      {/* Module List */}
       <div className="space-y-3">
         {section.modules.map((mod: any, index: number) => {
           const isCompleted = completedIds.has(mod.id);
@@ -110,9 +135,6 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
                         <ImageIcon className="w-3 h-3" /> Photos
                       </span>
                     )}
-                    {mod.quiz && (
-                      <span className="text-xs text-ditch-orange flex items-center gap-1">Quiz</span>
-                    )}
                   </div>
                 </div>
               </Card>
@@ -120,6 +142,88 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
           );
         })}
       </div>
+
+      {/* Section Quiz — at the bottom, gated by module completion */}
+      {sectionQuiz && (
+        <div className="pt-2">
+          <div className="border-t border-gray-200 pt-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <ClipboardCheck className="w-5 h-5 text-ditch-orange" />
+              Section Quiz
+            </h2>
+
+            {allModulesComplete ? (
+              <Card className={`border-l-4 ${hasPassed ? "border-l-ditch-green bg-green-50/30" : "border-l-ditch-orange"}`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{sectionQuiz.title}</h3>
+                    {sectionQuiz.description && (
+                      <p className="text-sm text-gray-500 mt-1">{sectionQuiz.description}</p>
+                    )}
+                    <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
+                      <span>{(sectionQuiz.questions || []).length} questions</span>
+                      <span>Passing: {sectionQuiz.passingScore}%</span>
+                      {sectionQuiz.retryLimit > 0 && <span>Max attempts: {sectionQuiz.retryLimit}</span>}
+                    </div>
+                    {hasPassed && (
+                      <div className="flex items-center gap-2 mt-3">
+                        <CheckCircle2 className="w-4 h-4 text-ditch-green" />
+                        <span className="text-sm font-medium text-ditch-green">Passed</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {quizAttempts.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Your Attempts ({quizAttempts.length})</p>
+                    <div className="space-y-2">
+                      {quizAttempts.slice(0, 3).map((attempt: any) => (
+                        <div key={attempt.id} className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">{attempt.completedAt ? formatDate(attempt.completedAt) : "In progress"}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{attempt.score}%</span>
+                            <Badge variant={attempt.passed ? "completed" : "required"}>
+                              {attempt.passed ? "Passed" : "Failed"}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4">
+                  <Link
+                    href={`/quizzes/${sectionQuiz.id}`}
+                    className="inline-flex items-center gap-2 bg-ditch-orange text-white px-6 py-2.5 rounded-lg font-medium hover:bg-ditch-orange/90 transition-colors"
+                  >
+                    <ClipboardCheck className="w-4 h-4" />
+                    {hasPassed ? "Review Quiz" : quizAttempts.length > 0 ? "Retake Quiz" : "Start Quiz"}
+                  </Link>
+                </div>
+              </Card>
+            ) : (
+              <Card className="border-l-4 border-l-gray-300 bg-gray-50/50">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-gray-200 rounded-full">
+                    <Lock className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-500">{sectionQuiz.title}</h3>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Complete all {section.modules.length} modules in this section to unlock the quiz.
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      {completedCount} of {section.modules.length} modules completed
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

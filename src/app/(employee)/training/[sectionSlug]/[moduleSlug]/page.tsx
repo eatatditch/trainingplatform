@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { formatDuration, formatDate } from "@/lib/utils";
-import { ArrowLeft, Clock, FileText, Download, Video, Image as ImageIcon, CheckCircle2, ClipboardCheck, Printer } from "lucide-react";
+import { formatDuration } from "@/lib/utils";
+import { ArrowLeft, Clock, FileText, Download, Video, Image as ImageIcon, CheckCircle2, Printer } from "lucide-react";
 import { MarkCompleteButton } from "@/components/training/mark-complete-button";
 import { ModuleContent } from "@/components/training/module-content";
 
@@ -29,7 +29,7 @@ export default async function ModuleDetailPage({
 
   const { data: moduleData } = await db
     .from("Module")
-    .select("*, section:Section(*), assets:ModuleAsset(*), quiz:Quiz(*, questions:QuizQuestion(*))")
+    .select("*, section:Section(*), assets:ModuleAsset(*)")
     .eq("slug", moduleSlug)
     .eq("sectionId", sectionData.id)
     .eq("isActive", true)
@@ -51,17 +51,6 @@ export default async function ModuleDetailPage({
       .eq("moduleId", module.id)
       .limit(1);
     isCompleted = (completionData || []).length > 0;
-  }
-
-  let quizAttempts: any[] = [];
-  if (userId && module.quiz) {
-    const { data: attemptsData } = await db
-      .from("QuizAttempt")
-      .select("*")
-      .eq("userId", userId)
-      .eq("quizId", module.quiz.id)
-      .order("completedAt", { ascending: false });
-    quizAttempts = attemptsData || [];
   }
 
   const videos = module.assets.filter((a: any) => a.fileType === "VIDEO");
@@ -217,51 +206,6 @@ export default async function ModuleDetailPage({
                 </div>
               );
             })}
-          </div>
-        </Card>
-      )}
-
-      {/* Quiz */}
-      {module.quiz && (
-        <Card className="border-ditch-orange/30">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <ClipboardCheck className="w-5 h-5 text-ditch-orange" /> Quiz: {module.quiz.title}
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">{module.quiz.description}</p>
-              <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                <span>{(module.quiz.questions || []).length} questions</span>
-                <span>Passing: {module.quiz.passingScore}%</span>
-                {module.quiz.retryLimit > 0 && <span>Max attempts: {module.quiz.retryLimit}</span>}
-              </div>
-            </div>
-          </div>
-          {quizAttempts.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-sm font-medium text-gray-700 mb-2">Your Attempts ({quizAttempts.length})</p>
-              <div className="space-y-2">
-                {quizAttempts.slice(0, 3).map((attempt: any) => (
-                  <div key={attempt.id} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">{attempt.completedAt ? formatDate(attempt.completedAt) : "In progress"}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{attempt.score}%</span>
-                      <Badge variant={attempt.passed ? "completed" : "required"}>
-                        {attempt.passed ? "Passed" : "Failed"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="mt-4">
-            <Link
-              href={`/quizzes/${module.quiz.id}`}
-              className="btn-primary inline-block text-center w-full sm:w-auto"
-            >
-              {quizAttempts.length > 0 ? "Retake Quiz" : "Start Quiz"}
-            </Link>
           </div>
         </Card>
       )}
