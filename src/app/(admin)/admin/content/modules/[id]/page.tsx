@@ -116,10 +116,8 @@ export default function EditModulePage({ params }: { params: Promise<{ id: strin
 
   const handleDeleteAsset = async (assetId: string) => {
     if (!confirm("Delete this file?")) return;
-    const res = await fetch(`/api/admin/modules/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deleteAssetId: assetId }),
+    const res = await fetch(`/api/admin/assets/${assetId}`, {
+      method: "DELETE",
     });
     if (res.ok) {
       setAssets((prev) => prev.filter((a) => a.id !== assetId));
