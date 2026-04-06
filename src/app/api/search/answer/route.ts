@@ -138,34 +138,49 @@ export async function GET(request: NextRequest) {
 }
 
 function parseRecipe(title: string, content: string): any {
-  // Parse the structured recipe text into fields
   const name = title.replace(/ Recipe$/, "");
 
-  const glassMatch = content.match(/Glass:\s*([^\n|]+)/i);
-  const procedureMatch = content.match(/Procedure:\s*([^\n]+)/i);
+  // Glass and procedure are often on one line: "Glass: DOF w/Ice | Procedure: Shake w/Ice & Strain"
+  const glassLine = content.match(/Glass:\s*([^\n]+)/i);
+  let glass = "";
+  let procedure = "";
+
+  if (glassLine) {
+    const parts = glassLine[1].split(/\s*\|\s*/);
+    glass = parts[0].replace(/Procedure:.*$/i, "").trim();
+    const procPart = glassLine[1].match(/Procedure:\s*(.+)/i);
+    if (procPart) procedure = procPart[1].trim();
+  }
+
+  // Standalone procedure line (if not on glass line)
+  if (!procedure) {
+    const procMatch = content.match(/^Procedure:\s*([^\n]+)/im);
+    if (procMatch) procedure = procMatch[1].trim();
+  }
+
   const garnishMatch = content.match(/Garnish:\s*([^\n]+)/i);
   const noteMatch = content.match(/Note:\s*([^\n]+)/i);
   const yieldMatch = content.match(/Yield:\s*([^\n|]+)/i);
   const shelfMatch = content.match(/Shelf Life:\s*([^\n|]+)/i);
   const priceMatch = content.match(/\((\$\d+)\)/);
 
-  // Extract ingredients
-  const ingredientsMatch = content.match(/Ingredients:\s*([^\n]*(?:\n(?!Garnish:|Note:|⚠)[^\n]*)*)/i);
+  // Extract ingredients — everything after "Ingredients:" up to the next field
+  const ingredientsMatch = content.match(/Ingredients:\s*([\s\S]*?)(?=\nGarnish:|\nNote:|\nProcedure:|\n⚠|$)/i);
   let ingredients: string[] = [];
   if (ingredientsMatch) {
-    ingredients = ingredientsMatch[1]
+    const raw = ingredientsMatch[1].replace(/\n/g, ", ").trim();
+    ingredients = raw
       .split(/,\s*/)
       .map((i) => i.trim())
       .filter((i) => i.length > 0);
   }
 
-  // Check for allergy warnings
   const hasNutWarning = content.includes("CONTAINS NUTS") || content.includes("NUT ALLERGY");
 
   return {
     name,
-    glass: glassMatch ? glassMatch[1].trim() : "",
-    procedure: procedureMatch ? procedureMatch[1].trim() : "",
+    glass,
+    procedure,
     ingredients,
     garnish: garnishMatch ? garnishMatch[1].trim() : "",
     note: noteMatch ? noteMatch[1].trim() : "",
