@@ -238,11 +238,17 @@ export default function EmployeesPage() {
                     <Route className="w-4 h-4 text-ditch-orange" />
                   </button>
                   <button
-                    onClick={() => toggleActive(emp)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    title={emp.isActive ? "Deactivate" : "Activate"}
+                    onClick={() => {
+                      if (emp.isActive && !confirm(`Deactivate ${emp.firstName} ${emp.lastName}? They will lose access to the training platform and SpecOS.`)) return;
+                      toggleActive(emp);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      emp.isActive
+                        ? "text-red-500 hover:bg-red-50 border border-red-200"
+                        : "text-ditch-green hover:bg-green-50 border border-green-200"
+                    }`}
                   >
-                    {emp.isActive ? <Eye className="w-4 h-4 text-gray-400" /> : <EyeOff className="w-4 h-4 text-gray-400" />}
+                    {emp.isActive ? "Deactivate" : "Activate"}
                   </button>
                 </div>
               </div>
