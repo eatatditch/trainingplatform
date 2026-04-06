@@ -233,11 +233,12 @@ export default function SpecOSPage() {
             </div>
           )}
 
-          <div className="relative">
+          <form onSubmit={(e) => { e.preventDefault(); inputRef.current?.blur(); }} className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
             <input
               ref={inputRef}
-              type="text"
+              type="search"
+              enterKeyHint="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search recipes, specs, or ask a question..."
@@ -245,11 +246,11 @@ export default function SpecOSPage() {
             />
             {loading && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ditch-orange animate-spin" />}
             {query && !loading && (
-              <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-800 rounded-full">
+              <button type="button" onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-800 rounded-full">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             )}
-          </div>
+          </form>
         </div>
 
         {/* Quick Tags */}
