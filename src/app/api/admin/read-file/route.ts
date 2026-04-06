@@ -33,25 +33,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ fileName, text: result.value });
     }
 
-    // PDF files — use pdf-parse with error handling
+    // PDF files — basic text extraction without external deps
     if (fileName.endsWith(".pdf")) {
-      try {
-        // pdf-parse needs this workaround for serverless
-        const pdfParse = (await import("pdf-parse")).default;
-        const result = await pdfParse(buffer, { max: 0 });
-        return NextResponse.json({ fileName, text: result.text, pages: result.numpages });
-      } catch (pdfErr: any) {
-        // Fallback: return file info without text
-        return NextResponse.json({
-          fileName,
-          text: `[PDF extraction failed: ${pdfErr.message}]`,
-          sizeBytes: buffer.length,
-        });
-      }
+      // Extract readable text from PDF binary by scanning for text streams
+      const text = extractTextFromPdfBuffer(buffer);
+      return NextResponse.json({ fileName, text, sizeBytes: buffer.length });
     }
 
     return NextResponse.json({ fileName, text: "[Unsupported format]" });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+}
+
+function extractTextFromPdfBuffer(buffer: Buffer): string {
+  const str = buffer.toString("latin1");
+  const texts: string[] = [];
+
+  // Find text between BT and ET markers (PDF text objects)
+  const btEtRegex = /BT\s*([\s\S]*?)\s*ET/g;
+  let match;
+
+  while ((match = btEtRegex.exec(str)) !== null) {
+    const block = match[1];
+    // Extract strings in parentheses (PDF literal strings)
+    const parenRegex = /\(([^)]*)\)/g;
+    let strMatch;
+    while ((strMatch = parenRegex.exec(block)) !== null) {
+      const decoded = strMatch[1]
+        .replace(/\\n/g, "\n")
+        .replace(/\\r/g, "\r")
+        .replace(/\\t/g, "\t")
+        .replace(/\\\\/g, "\\")
+        .replace(/\\([()])/g, "$1");
+      if (decoded.trim()) texts.push(decoded);
+    }
+    // Extract hex strings
+    const hexRegex = /<([0-9a-fA-F]+)>/g;
+    let hexMatch;
+    while ((hexMatch = hexRegex.exec(block)) !== null) {
+      const hex = hexMatch[1];
+      let decoded = "";
+      for (let i = 0; i < hex.length; i += 2) {
+        decoded += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+      }
+      if (decoded.trim()) texts.push(decoded);
+    }
+  }
+
+  return texts.join(" ").replace(/\s+/g, " ").trim();
 }
