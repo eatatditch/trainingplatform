@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Loader2, AlertTriangle, ArrowRight, X, Wine, Coffee, Sparkles, Zap } from "lucide-react";
+import { Search, Loader2, AlertTriangle, X, Sparkles, Zap, Lock } from "lucide-react";
 import Link from "next/link";
+
+const SPECOS_PIN = "1234"; // Change this to your preferred PIN
+const STORAGE_KEY = "specos-auth";
 
 interface Recipe {
   name: string;
@@ -15,12 +18,7 @@ interface Recipe {
   yield: string;
   shelfLife: string;
   allergyWarning: string;
-  source: {
-    title: string;
-    section: string;
-    sectionSlug: string;
-    moduleSlug: string;
-  };
+  source: { title: string; section: string; sectionSlug: string; moduleSlug: string };
 }
 
 interface Answer {
@@ -40,7 +38,92 @@ interface SearchResult {
   tags: string[];
 }
 
+// ─── PIN Gate ────────────────────────────────────────────────────────────────
+function PinGate({ onUnlock }: { onUnlock: () => void }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [digits, setDigits] = useState(["", "", "", ""]);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    inputRefs.current[0]?.focus();
+  }, []);
+
+  const handleDigit = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const newDigits = [...digits];
+    newDigits[index] = value.slice(-1);
+    setDigits(newDigits);
+    setError(false);
+
+    if (value && index < 3) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    const fullPin = newDigits.join("");
+    if (fullPin.length === 4) {
+      if (fullPin === SPECOS_PIN) {
+        localStorage.setItem(STORAGE_KEY, Date.now().toString());
+        onUnlock();
+      } else {
+        setError(true);
+        setDigits(["", "", "", ""]);
+        setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      }
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+      <div className="text-center">
+        <div className="w-16 h-16 bg-ditch-orange rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <Zap className="w-9 h-9 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-1">SpecOS</h1>
+        <p className="text-gray-500 text-sm mb-8">Enter your team PIN to continue</p>
+
+        <div className="flex gap-3 justify-center mb-4">
+          {digits.map((digit, i) => (
+            <input
+              key={i}
+              ref={(el) => { inputRefs.current[i] = el; }}
+              type="tel"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleDigit(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
+              className={`w-14 h-16 text-center text-2xl font-bold rounded-xl border-2 bg-gray-900 text-white focus:outline-none transition-colors ${
+                error
+                  ? "border-red-500 animate-shake"
+                  : digit
+                  ? "border-ditch-orange"
+                  : "border-gray-800 focus:border-ditch-orange"
+              }`}
+            />
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-red-400 text-sm">Incorrect PIN. Try again.</p>
+        )}
+
+        <p className="text-gray-700 text-xs mt-8">Ditch Internal Use Only</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main SpecOS App ─────────────────────────────────────────────────────────
 export default function SpecOSPage() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [query, setQuery] = useState("");
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [answer, setAnswer] = useState<Answer | null>(null);
@@ -48,6 +131,20 @@ export default function SpecOSPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Check if already authenticated (PIN lasts 24 hours)
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const elapsed = Date.now() - parseInt(stored);
+      if (elapsed < 24 * 60 * 60 * 1000) {
+        setAuthenticated(true);
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+    setChecking(false);
+  }, []);
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -79,13 +176,12 @@ export default function SpecOSPage() {
     return () => clearTimeout(timer);
   }, [query, doSearch]);
 
-  // Focus input on load + register service worker for PWA
   useEffect(() => {
-    inputRef.current?.focus();
-    if ("serviceWorker" in navigator) {
+    if (authenticated) inputRef.current?.focus();
+    if (authenticated && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/specos-sw.js").catch(() => {});
     }
-  }, []);
+  }, [authenticated]);
 
   const clearSearch = () => {
     setQuery("");
@@ -96,10 +192,13 @@ export default function SpecOSPage() {
     inputRef.current?.focus();
   };
 
-  const quickSearch = (q: string) => {
-    setQuery(q);
-    inputRef.current?.focus();
-  };
+  if (checking) {
+    return <div className="min-h-screen bg-gray-950" />;
+  }
+
+  if (!authenticated) {
+    return <PinGate onUnlock={() => setAuthenticated(true)} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -115,16 +214,17 @@ export default function SpecOSPage() {
               <p className="text-gray-500 text-[10px] uppercase tracking-widest">by Ditch</p>
             </div>
           </div>
-          <Link href="/dashboard" className="text-xs text-gray-500 hover:text-gray-400 transition-colors">
-            Training Platform →
-          </Link>
+          <button
+            onClick={() => { localStorage.removeItem(STORAGE_KEY); setAuthenticated(false); }}
+            className="text-xs text-gray-600 hover:text-gray-400 transition-colors flex items-center gap-1"
+          >
+            <Lock className="w-3 h-3" /> Lock
+          </button>
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main */}
       <main className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4">
-
-        {/* Search — centered when no results, top when results exist */}
         <div className={`transition-all duration-300 ${!searched ? "flex-1 flex flex-col justify-center -mt-16" : "pt-6"}`}>
           {!searched && (
             <div className="text-center mb-8">
@@ -143,9 +243,7 @@ export default function SpecOSPage() {
               placeholder="Search recipes, specs, or ask a question..."
               className="w-full pl-12 pr-12 py-4 rounded-2xl bg-gray-900 border border-gray-800 text-white placeholder-gray-600 focus:border-ditch-orange focus:ring-0 focus:outline-none text-base"
             />
-            {loading && (
-              <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ditch-orange animate-spin" />
-            )}
+            {loading && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ditch-orange animate-spin" />}
             {query && !loading && (
               <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-800 rounded-full">
                 <X className="w-4 h-4 text-gray-500" />
@@ -154,7 +252,7 @@ export default function SpecOSPage() {
           </div>
         </div>
 
-        {/* Quick Tags — only when not searched */}
+        {/* Quick Tags */}
         {!searched && (
           <div className="mt-6 mb-8">
             <div className="flex flex-wrap gap-2 justify-center">
@@ -172,7 +270,7 @@ export default function SpecOSPage() {
               ].map((q) => (
                 <button
                   key={q.label}
-                  onClick={() => quickSearch(q.label)}
+                  onClick={() => setQuery(q.label)}
                   className="px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-full text-sm text-gray-400 hover:border-ditch-orange hover:text-ditch-orange transition-colors flex items-center gap-1.5"
                 >
                   <span>{q.icon}</span>
@@ -187,17 +285,13 @@ export default function SpecOSPage() {
         {searched && !loading && recipe && (
           <div className="mt-6 mb-8">
             <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-              {/* Recipe Header */}
               <div className="bg-gradient-to-r from-ditch-navy to-ditch-navy/80 px-6 py-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-white font-bold text-xl">{recipe.name}</h2>
-                  {recipe.price && (
-                    <span className="text-ditch-orange font-bold text-xl">{recipe.price}</span>
-                  )}
+                  {recipe.price && <span className="text-ditch-orange font-bold text-xl">{recipe.price}</span>}
                 </div>
               </div>
 
-              {/* Allergy Warning */}
               {recipe.allergyWarning && (
                 <div className="bg-red-500/10 border-b border-red-500/20 px-6 py-2 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-red-400" />
@@ -205,7 +299,6 @@ export default function SpecOSPage() {
                 </div>
               )}
 
-              {/* Recipe Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -251,7 +344,6 @@ export default function SpecOSPage() {
                 </table>
               </div>
 
-              {/* Note */}
               {recipe.note && (
                 <div className="px-6 py-3 border-t border-gray-800 bg-gray-900/50">
                   <p className="text-xs text-gray-500"><span className="font-semibold text-gray-400">Note:</span> {recipe.note}</p>
@@ -271,16 +363,14 @@ export default function SpecOSPage() {
                 </div>
                 <div>
                   <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-line">{answer.text}</p>
-                  <p className="text-xs text-gray-600 mt-3">
-                    Source: {answer.source.section} → {answer.source.title}
-                  </p>
+                  <p className="text-xs text-gray-600 mt-3">Source: {answer.source.section} → {answer.source.title}</p>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Module Results — only when no recipe */}
+        {/* Module Results */}
         {searched && !loading && !recipe && results.length > 0 && (
           <div className="mt-4 mb-8 space-y-2">
             {results.map((result) => (
