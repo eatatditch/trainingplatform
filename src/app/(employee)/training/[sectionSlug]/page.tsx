@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { formatDuration, formatDate } from "@/lib/utils";
-import { ArrowLeft, Clock, CheckCircle2, FileText, Video, Image as ImageIcon, ClipboardCheck, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, CheckCircle2, FileText, Video, Image as ImageIcon, ClipboardCheck, Lock } from "lucide-react";
 
 export default async function SectionPage({ params }: { params: Promise<{ sectionSlug: string }> }) {
   const { sectionSlug } = await params;
@@ -47,36 +47,39 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
     }
   }
 
+  // Fetch all sections for sequential order + next section navigation
+  const { data: allSections } = await db
+    .from("Section")
+    .select("id, slug, sortOrder, title, modules:Module(id)")
+    .eq("isActive", true)
+    .order("sortOrder");
+
+  const sortedSections = (allSections || []).map((s: any) => ({
+    ...s,
+    modules: (s.modules || []),
+  }));
+
+  const currentIdx = sortedSections.findIndex((s: any) => s.id === sectionData.id);
+  const nextSection = currentIdx >= 0 && currentIdx < sortedSections.length - 1
+    ? sortedSections[currentIdx + 1]
+    : null;
+  const isLastSection = currentIdx === sortedSections.length - 1;
+
   // Enforce sequential section order — check if previous section is complete
-  if (userId) {
-    const { data: allSections } = await db
-      .from("Section")
-      .select("id, slug, sortOrder, modules:Module(id)")
-      .eq("isActive", true)
-      .order("sortOrder");
+  if (userId && currentIdx > 0) {
+    const prevSection = sortedSections[currentIdx - 1];
+    const prevModuleIds = prevSection.modules.map((m: any) => m.id);
 
-    const sortedSections = (allSections || []).map((s: any) => ({
-      ...s,
-      modules: (s.modules || []),
-    }));
+    if (prevModuleIds.length > 0) {
+      const { data: prevCompletions } = await db
+        .from("ModuleCompletion")
+        .select("moduleId")
+        .eq("userId", userId)
+        .in("moduleId", prevModuleIds);
 
-    const currentIdx = sortedSections.findIndex((s: any) => s.id === sectionData.id);
-
-    if (currentIdx > 0) {
-      const prevSection = sortedSections[currentIdx - 1];
-      const prevModuleIds = prevSection.modules.map((m: any) => m.id);
-
-      if (prevModuleIds.length > 0) {
-        const { data: prevCompletions } = await db
-          .from("ModuleCompletion")
-          .select("moduleId")
-          .eq("userId", userId)
-          .in("moduleId", prevModuleIds);
-
-        const prevCompletedCount = new Set((prevCompletions || []).map((c: any) => c.moduleId)).size;
-        if (prevCompletedCount < prevModuleIds.length) {
-          redirect("/training");
-        }
+      const prevCompletedCount = new Set((prevCompletions || []).map((c: any) => c.moduleId)).size;
+      if (prevCompletedCount < prevModuleIds.length) {
+        redirect("/training");
       }
     }
   }
@@ -269,7 +272,7 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
                   </div>
                 )}
 
-                <div className="mt-4">
+                <div className="mt-4 flex items-center gap-3 flex-wrap">
                   <Link
                     href={`/quizzes/${sectionQuiz.id}`}
                     className="inline-flex items-center gap-2 bg-ditch-orange text-white px-6 py-2.5 rounded-lg font-medium hover:bg-ditch-orange/90 transition-colors"
@@ -277,6 +280,22 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
                     <ClipboardCheck className="w-4 h-4" />
                     {hasPassed ? "Review Quiz" : quizAttempts.length > 0 ? "Retake Quiz" : "Start Quiz"}
                   </Link>
+                  {hasPassed && nextSection && (
+                    <Link
+                      href={`/training/${nextSection.slug}`}
+                      className="inline-flex items-center gap-2 bg-ditch-navy text-white px-6 py-2.5 rounded-lg font-medium hover:bg-ditch-navy/90 transition-colors"
+                    >
+                      Next Section <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  )}
+                  {hasPassed && isLastSection && (
+                    <Link
+                      href="/training"
+                      className="inline-flex items-center gap-2 bg-ditch-green text-white px-6 py-2.5 rounded-lg font-medium hover:bg-ditch-green/90 transition-colors"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Training Complete
+                    </Link>
+                  )}
                 </div>
               </Card>
             ) : (

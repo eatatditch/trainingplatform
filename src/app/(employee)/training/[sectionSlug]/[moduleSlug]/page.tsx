@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { formatDuration } from "@/lib/utils";
-import { ArrowLeft, Clock, FileText, Download, Video, Image as ImageIcon, CheckCircle2, Printer } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, FileText, Download, Video, Image as ImageIcon, CheckCircle2, Printer } from "lucide-react";
 import { MarkCompleteButton } from "@/components/training/mark-complete-button";
 import { ModuleContent } from "@/components/training/module-content";
 
@@ -63,31 +63,33 @@ export default async function ModuleDetailPage({
     assets: (moduleData.assets || []).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
   };
 
+  // Fetch all modules in section for sequential order + next module navigation
+  const { data: allSectionModules } = await db
+    .from("Module")
+    .select("id, sortOrder, slug, title")
+    .eq("sectionId", sectionData.id)
+    .eq("isActive", true)
+    .order("sortOrder");
+
+  const sortedModules = (allSectionModules || []).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const currentIndex = sortedModules.findIndex((m: any) => m.id === module.id);
+  const nextModule = currentIndex >= 0 && currentIndex < sortedModules.length - 1
+    ? sortedModules[currentIndex + 1]
+    : null;
+  const isLastModule = currentIndex === sortedModules.length - 1;
+
   // Enforce sequential module order — check if previous module is completed
-  if (userId) {
-    const { data: allSectionModules } = await db
-      .from("Module")
-      .select("id, sortOrder, slug")
-      .eq("sectionId", sectionData.id)
-      .eq("isActive", true)
-      .order("sortOrder");
+  if (userId && currentIndex > 0) {
+    const prevModule = sortedModules[currentIndex - 1];
+    const { data: prevCompletion } = await db
+      .from("ModuleCompletion")
+      .select("id")
+      .eq("userId", userId)
+      .eq("moduleId", prevModule.id)
+      .limit(1);
 
-    const sorted = (allSectionModules || []).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-    const currentIndex = sorted.findIndex((m: any) => m.id === module.id);
-
-    if (currentIndex > 0) {
-      const prevModule = sorted[currentIndex - 1];
-      const { data: prevCompletion } = await db
-        .from("ModuleCompletion")
-        .select("id")
-        .eq("userId", userId)
-        .eq("moduleId", prevModule.id)
-        .limit(1);
-
-      if (!prevCompletion || prevCompletion.length === 0) {
-        // Previous module not completed — redirect back to section
-        redirect(`/training/${sectionSlug}`);
-      }
+    if (!prevCompletion || prevCompletion.length === 0) {
+      redirect(`/training/${sectionSlug}`);
     }
   }
 
@@ -290,6 +292,25 @@ export default async function ModuleDetailPage({
           </div>
         </Card>
       )}
+
+      {/* Next Module / Back to Section Navigation */}
+      <div className="flex justify-end pt-2">
+        {nextModule ? (
+          <Link
+            href={`/training/${sectionSlug}/${nextModule.slug}`}
+            className="inline-flex items-center gap-2 bg-ditch-navy text-white px-6 py-2.5 rounded-lg font-medium hover:bg-ditch-navy/90 transition-colors"
+          >
+            Next Module <ArrowRight className="w-4 h-4" />
+          </Link>
+        ) : isLastModule ? (
+          <Link
+            href={`/training/${sectionSlug}`}
+            className="inline-flex items-center gap-2 bg-ditch-navy text-white px-6 py-2.5 rounded-lg font-medium hover:bg-ditch-navy/90 transition-colors"
+          >
+            Back to Section <ArrowRight className="w-4 h-4" />
+          </Link>
+        ) : null}
+      </div>
     </div>
   );
 }
