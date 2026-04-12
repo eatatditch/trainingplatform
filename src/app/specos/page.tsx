@@ -183,6 +183,7 @@ export default function SpecOSPage() {
     setUser(null);
   };
 
+  // Voice search (dormant — not exposed in UI)
   const toggleVoice = () => {
     if (listening) {
       recognitionRef.current?.abort();
@@ -226,13 +227,6 @@ export default function SpecOSPage() {
       setListening(false);
     }
   };
-
-  const [hasSpeechSupport, setHasSpeechSupport] = useState(false);
-  useEffect(() => {
-    setHasSpeechSupport(
-      !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-    );
-  }, []);
 
   if (checking) {
     return <div className="min-h-screen bg-gray-950" />;
@@ -284,25 +278,14 @@ export default function SpecOSPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search or ask a question..."
-              className={`w-full pl-12 pr-24 py-4 rounded-2xl bg-gray-900 border text-white placeholder-gray-600 focus:border-ditch-orange focus:ring-0 focus:outline-none text-base ${listening ? "border-ditch-orange" : "border-gray-800"}`}
+              className="w-full pl-12 pr-12 py-4 rounded-2xl bg-gray-900 border border-gray-800 text-white placeholder-gray-600 focus:border-ditch-orange focus:ring-0 focus:outline-none text-base"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {loading && <Loader2 className="w-5 h-5 text-ditch-orange animate-spin" />}
-              {query && !loading && (
-                <button type="button" onClick={clearSearch} className="p-1.5 hover:bg-gray-800 rounded-full">
-                  <X className="w-4 h-4 text-gray-500" />
-                </button>
-              )}
-              {hasSpeechSupport && (
-                <button
-                  type="button"
-                  onClick={toggleVoice}
-                  className={`p-1.5 rounded-full transition-colors ${listening ? "bg-ditch-orange text-white animate-pulse" : "hover:bg-gray-800 text-gray-500"}`}
-                >
-                  {listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                </button>
-              )}
-            </div>
+            {loading && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ditch-orange animate-spin" />}
+            {query && !loading && (
+              <button type="button" onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-800 rounded-full">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            )}
           </form>
         </div>
 
