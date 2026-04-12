@@ -156,9 +156,10 @@ export default function SpecOSPage() {
   }, []);
 
   useEffect(() => {
+    if (listening) return; // Don't search while voice is active
     const timer = setTimeout(() => doSearch(query), 350);
     return () => clearTimeout(timer);
-  }, [query, doSearch]);
+  }, [query, doSearch, listening]);
 
   useEffect(() => {
     if (user) inputRef.current?.focus();
@@ -184,7 +185,8 @@ export default function SpecOSPage() {
 
   const toggleVoice = () => {
     if (listening) {
-      recognitionRef.current?.stop();
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
       setListening(false);
       return;
     }
@@ -193,24 +195,36 @@ export default function SpecOSPage() {
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.interimResults = true;
-    recognition.continuous = false;
-    recognitionRef.current = recognition;
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+      recognitionRef.current = recognition;
 
-    recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results as SpeechRecognitionResultList)
-        .map((r: any) => r[0].transcript)
-        .join("");
-      setQuery(transcript);
-    };
+      recognition.onresult = (event: any) => {
+        const last = event.results[event.results.length - 1];
+        if (last?.isFinal) {
+          setQuery(last[0].transcript);
+        }
+      };
 
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+      recognition.onend = () => {
+        recognitionRef.current = null;
+        setListening(false);
+      };
 
-    recognition.start();
-    setListening(true);
+      recognition.onerror = () => {
+        recognitionRef.current = null;
+        setListening(false);
+      };
+
+      recognition.start();
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
   };
 
   const [hasSpeechSupport, setHasSpeechSupport] = useState(false);
