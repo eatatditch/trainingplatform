@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Loader2, AlertTriangle, X, Sparkles, Zap, LogOut } from "lucide-react";
+import { Search, Loader2, AlertTriangle, X, Sparkles, Zap, LogOut, Mic, MicOff } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -117,7 +117,9 @@ export default function SpecOSPage() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [listening, setListening] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Check Supabase auth session
   useEffect(() => {
@@ -180,6 +182,44 @@ export default function SpecOSPage() {
     setUser(null);
   };
 
+  const toggleVoice = () => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results as SpeechRecognitionResultList)
+        .map((r: any) => r[0].transcript)
+        .join("");
+      setQuery(transcript);
+    };
+
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+
+    recognition.start();
+    setListening(true);
+  };
+
+  const [hasSpeechSupport, setHasSpeechSupport] = useState(false);
+  useEffect(() => {
+    setHasSpeechSupport(
+      !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+    );
+  }, []);
+
   if (checking) {
     return <div className="min-h-screen bg-gray-950" />;
   }
@@ -229,15 +269,26 @@ export default function SpecOSPage() {
               enterKeyHint="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search recipes, specs, or ask a question..."
-              className="w-full pl-12 pr-12 py-4 rounded-2xl bg-gray-900 border border-gray-800 text-white placeholder-gray-600 focus:border-ditch-orange focus:ring-0 focus:outline-none text-base"
+              placeholder="Search or ask a question..."
+              className={`w-full pl-12 pr-24 py-4 rounded-2xl bg-gray-900 border text-white placeholder-gray-600 focus:border-ditch-orange focus:ring-0 focus:outline-none text-base ${listening ? "border-ditch-orange" : "border-gray-800"}`}
             />
-            {loading && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ditch-orange animate-spin" />}
-            {query && !loading && (
-              <button type="button" onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-800 rounded-full">
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            )}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {loading && <Loader2 className="w-5 h-5 text-ditch-orange animate-spin" />}
+              {query && !loading && (
+                <button type="button" onClick={clearSearch} className="p-1.5 hover:bg-gray-800 rounded-full">
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              )}
+              {hasSpeechSupport && (
+                <button
+                  type="button"
+                  onClick={toggleVoice}
+                  className={`p-1.5 rounded-full transition-colors ${listening ? "bg-ditch-orange text-white animate-pulse" : "hover:bg-gray-800 text-gray-500"}`}
+                >
+                  {listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
