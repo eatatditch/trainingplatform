@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Loader2, AlertTriangle, X, Sparkles, Zap, LogOut, Mic, MicOff, Utensils, CheckCircle2, Leaf } from "lucide-react";
+import { Search, Loader2, AlertTriangle, X, Sparkles, Zap, LogOut, Mic, MicOff, Utensils, CheckCircle2, Leaf, Brain, Info } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -30,6 +30,8 @@ interface FoodItem {
   dietary: string[];
   modifications: string;
   tags: string[];
+  crossWarnings?: string[];
+  linkedIngredients?: { id: string; name: string; allergens: string[]; notes: string }[];
   verdict?: { safe: boolean; text: string } | null;
 }
 
@@ -42,6 +44,13 @@ interface Answer {
   text: string;
   source: { title: string; section: string; sectionSlug: string; moduleSlug: string };
   confidence: string;
+}
+
+interface AIAnswer {
+  verdict: "safe" | "warning" | "info";
+  title: string;
+  answer: string;
+  items?: string[];
 }
 
 interface SearchResult {
@@ -135,6 +144,7 @@ export default function SpecOSPage() {
   const [foodItem, setFoodItem] = useState<FoodItem | null>(null);
   const [foodList, setFoodList] = useState<FoodList | null>(null);
   const [answer, setAnswer] = useState<Answer | null>(null);
+  const [aiAnswer, setAiAnswer] = useState<AIAnswer | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -142,7 +152,6 @@ export default function SpecOSPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Check Supabase auth session
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
@@ -157,6 +166,7 @@ export default function SpecOSPage() {
       setFoodItem(null);
       setFoodList(null);
       setAnswer(null);
+      setAiAnswer(null);
       setResults([]);
       setSearched(false);
       return;
@@ -171,6 +181,7 @@ export default function SpecOSPage() {
         setFoodItem(data.foodItem);
         setFoodList(data.foodList);
         setAnswer(data.answer);
+        setAiAnswer(data.aiAnswer);
         setResults(data.results || []);
       }
     } catch {
@@ -181,7 +192,7 @@ export default function SpecOSPage() {
   }, []);
 
   useEffect(() => {
-    if (listening) return; // Don't search while voice is active
+    if (listening) return;
     const timer = setTimeout(() => doSearch(query), 350);
     return () => clearTimeout(timer);
   }, [query, doSearch, listening]);
@@ -199,6 +210,7 @@ export default function SpecOSPage() {
     setFoodItem(null);
     setFoodList(null);
     setAnswer(null);
+    setAiAnswer(null);
     setResults([]);
     setSearched(false);
     inputRef.current?.focus();
@@ -265,7 +277,6 @@ export default function SpecOSPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
       <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <button onClick={clearSearch} className="flex items-center gap-2">
@@ -286,7 +297,6 @@ export default function SpecOSPage() {
         </div>
       </header>
 
-      {/* Main */}
       <main className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4">
         <div className={`transition-all duration-300 ${!searched ? "flex-1 flex flex-col justify-center -mt-16" : "pt-6"}`}>
           {!searched && (
@@ -316,7 +326,6 @@ export default function SpecOSPage() {
           </form>
         </div>
 
-        {/* Quick Tags */}
         {!searched && (
           <div className="mt-6 mb-8">
             <div className="flex flex-wrap gap-2 justify-center">
@@ -345,7 +354,6 @@ export default function SpecOSPage() {
           </div>
         )}
 
-        {/* Recipe Card */}
         {searched && !loading && recipe && (
           <div className="mt-6 mb-8">
             <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
@@ -417,7 +425,6 @@ export default function SpecOSPage() {
           </div>
         )}
 
-        {/* Food Item Card */}
         {searched && !loading && !recipe && foodItem && (
           <div className="mt-6 mb-8">
             <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
@@ -493,6 +500,19 @@ export default function SpecOSPage() {
                   </div>
                 )}
 
+                {foodItem.crossWarnings && foodItem.crossWarnings.length > 0 && (
+                  <div className="pt-2 border-t border-gray-800">
+                    <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Cross-contamination
+                    </p>
+                    <ul className="space-y-1">
+                      {foodItem.crossWarnings.map((w, i) => (
+                        <li key={i} className="text-red-300 text-xs">• {w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {foodItem.modifications && (
                   <div className="pt-2 border-t border-gray-800">
                     <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Modifications</p>
@@ -504,7 +524,6 @@ export default function SpecOSPage() {
           </div>
         )}
 
-        {/* Food List (dietary/allergen filter results) */}
         {searched && !loading && !recipe && !foodItem && foodList && foodList.items.length > 0 && (
           <div className="mt-6 mb-8">
             <div className="flex items-center gap-2 mb-4">
@@ -533,8 +552,65 @@ export default function SpecOSPage() {
           </div>
         )}
 
-        {/* Text Answer */}
-        {searched && !loading && !recipe && !foodItem && !foodList && answer && (
+        {searched && !loading && !recipe && !foodItem && !foodList && aiAnswer && (
+          <div className="mt-6 mb-8">
+            <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+              <div className="flex items-center gap-2 px-6 py-3 bg-purple-500/10 border-b border-purple-500/20">
+                <Brain className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-semibold text-purple-300 uppercase tracking-widest">AI Assist</span>
+              </div>
+              <div
+                className={`px-6 py-3 flex items-start gap-2 border-b ${
+                  aiAnswer.verdict === "safe"
+                    ? "bg-ditch-green/10 border-ditch-green/20"
+                    : aiAnswer.verdict === "warning"
+                    ? "bg-red-500/10 border-red-500/20"
+                    : "bg-ditch-orange/10 border-ditch-orange/20"
+                }`}
+              >
+                {aiAnswer.verdict === "safe" ? (
+                  <CheckCircle2 className="w-4 h-4 text-ditch-green shrink-0 mt-0.5" />
+                ) : aiAnswer.verdict === "warning" ? (
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                ) : (
+                  <Info className="w-4 h-4 text-ditch-orange shrink-0 mt-0.5" />
+                )}
+                <span
+                  className={`text-sm font-semibold ${
+                    aiAnswer.verdict === "safe"
+                      ? "text-ditch-green"
+                      : aiAnswer.verdict === "warning"
+                      ? "text-red-400"
+                      : "text-ditch-orange"
+                  }`}
+                >
+                  {aiAnswer.title}
+                </span>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-line">{aiAnswer.answer}</p>
+                {aiAnswer.items && aiAnswer.items.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-800">
+                    {aiAnswer.items.map((item) => (
+                      <button
+                        key={item}
+                        onClick={() => setQuery(item)}
+                        className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-full text-xs font-medium transition-colors"
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-gray-600 pt-2 border-t border-gray-800">
+                  AI-generated · Always confirm allergen info with the kitchen.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {searched && !loading && !recipe && !foodItem && !foodList && !aiAnswer && answer && (
           <div className="mt-6 mb-8">
             <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6">
               <div className="flex items-start gap-3">
@@ -550,8 +626,7 @@ export default function SpecOSPage() {
           </div>
         )}
 
-        {/* Module Results */}
-        {searched && !loading && !recipe && !foodItem && !foodList && results.length > 0 && (
+        {searched && !loading && !recipe && !foodItem && !foodList && !aiAnswer && results.length > 0 && (
           <div className="mt-4 mb-8 space-y-2">
             {results.map((result) => (
               <Link
@@ -567,15 +642,13 @@ export default function SpecOSPage() {
           </div>
         )}
 
-        {/* No results */}
-        {searched && !loading && !recipe && !foodItem && !foodList && !answer && results.length === 0 && (
+        {searched && !loading && !recipe && !foodItem && !foodList && !aiAnswer && !answer && results.length === 0 && (
           <div className="mt-6 text-center">
             <p className="text-gray-500">No results found. Try a different search.</p>
           </div>
         )}
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-gray-800 py-4">
         <div className="max-w-3xl mx-auto px-4 flex items-center justify-between">
           <p className="text-[10px] text-gray-700 uppercase tracking-widest">SpecOS by Ditch Hospitality</p>
