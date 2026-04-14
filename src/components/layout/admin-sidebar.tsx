@@ -17,6 +17,7 @@ import {
   LogOut,
   Menu,
   X,
+  Utensils,
 } from "lucide-react";
 import { useState } from "react";
 import { getInitials } from "@/lib/utils";
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/content", label: "Content Manager", icon: FileText },
   { href: "/admin/quizzes", label: "Quiz Builder", icon: ClipboardCheck },
+  { href: "/admin/menu", label: "Menu & Kitchen", icon: Utensils },
   { href: "/admin/employees", label: "Employees", icon: Users },
   { href: "/admin/paths", label: "Training Paths", icon: Route },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
