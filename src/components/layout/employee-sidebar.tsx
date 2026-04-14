@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Settings,
+  Utensils,
 } from "lucide-react";
 import { useState } from "react";
 import { getInitials } from "@/lib/utils";
@@ -30,6 +31,7 @@ interface SidebarProps {
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/training", label: "Training Library", icon: BookOpen },
+  { href: "/menu", label: "Menu & Allergens", icon: Utensils },
   { href: "/search", label: "Search & Answers", icon: Search },
   { href: "/quizzes", label: "My Quizzes", icon: ClipboardCheck },
   { href: "/progress", label: "My Progress", icon: BarChart3 },
@@ -42,7 +44,6 @@ export function EmployeeSidebar({ user }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile toggle */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-ditch-orange rounded-lg flex items-center justify-center">
@@ -55,17 +56,14 @@ export function EmployeeSidebar({ user }: SidebarProps) {
         </button>
       </div>
 
-      {/* Overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-30 bg-black/50" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside className={cn(
         "fixed top-0 left-0 z-40 h-full w-64 bg-white border-r border-gray-200 flex flex-col transition-transform duration-200",
         mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
-        {/* Logo */}
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-ditch-orange rounded-xl flex items-center justify-center">
@@ -78,7 +76,6 @@ export function EmployeeSidebar({ user }: SidebarProps) {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -115,7 +112,6 @@ export function EmployeeSidebar({ user }: SidebarProps) {
           )}
         </nav>
 
-        {/* User */}
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-9 h-9 bg-ditch-navy rounded-full flex items-center justify-center">
@@ -140,7 +136,6 @@ export function EmployeeSidebar({ user }: SidebarProps) {
         </div>
       </aside>
 
-      {/* Mobile top padding */}
       <div className="lg:hidden h-14" />
     </>
   );
