@@ -8,8 +8,6 @@ const client = new Anthropic({
 const MODEL = "claude-haiku-4-5-20251001";
 
 // ─── Context Builder ────────────────────────────────────────────────────────────
-// Pulls the full menu + recipe + kitchen config into a single string that we
-// can cache on Anthropic's side for ~90% off on subsequent queries.
 async function buildMenuContext(): Promise<string> {
   const [foodRes, recipeRes, configRes, ingRes, linkRes] = await Promise.all([
     db.from("SearchIndex").select("id, title, content, tags").eq("contentType", "food"),
@@ -58,7 +56,6 @@ async function buildMenuContext(): Promise<string> {
     );
   }
 
-  // Build a map of food item ID -> linked ingredient names
   const links = (linkRes as any).data || [];
   const ingredientsByFoodId: Record<string, string[]> = {};
   const ingredientById: Record<string, any> = {};
@@ -99,7 +96,6 @@ async function buildMenuContext(): Promise<string> {
   return sections.join("\n\n═══════════════════════════════════════\n\n");
 }
 
-// ─── System Prompt ───────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are SpecOS, an instant-answer assistant for Ditch restaurant staff during service. They are mid-shift and need fast, accurate answers about the menu, cocktails, and operations.
 
 Rules:
@@ -117,12 +113,11 @@ Respond ONLY with a JSON object matching this exact shape:
   "verdict": "safe" | "warning" | "info",
   "title": "short headline, under 60 chars",
   "answer": "2-4 sentence answer for the staff member",
-  "items": ["Item Name 1", "Item Name 2"]  // optional, only when listing dishes
+  "items": ["Item Name 1", "Item Name 2"]
 }
 
 Do not wrap in markdown. Do not add commentary. Just the JSON object.`;
 
-// ─── Public API ───────────────────────────────────────────────────────────────────────
 export interface LLMAnswer {
   verdict: "safe" | "warning" | "info";
   title: string;
@@ -132,12 +127,15 @@ export interface LLMAnswer {
 
 export async function askLLM(query: string): Promise<LLMAnswer | null> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn("[llm] ANTHROPIC_API_KEY not set");
+    console.warn("[llm] skipped — ANTHROPIC_API_KEY not set");
     return null;
   }
 
+  console.log("[llm] invoking for query:", query);
+
   try {
     const context = await buildMenuContext();
+    console.log("[llm] context built, length:", context.length);
 
     const msg = await client.messages.create({
       model: MODEL,
@@ -153,31 +151,48 @@ export async function askLLM(query: string): Promise<LLMAnswer | null> {
       messages: [{ role: "user", content: query }],
     });
 
-    const textBlock = msg.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") return null;
+    console.log("[llm] response usage:", JSON.stringify(msg.usage));
 
-    // The model should return bare JSON but be forgiving of code fences.
+    const textBlock = msg.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      console.warn("[llm] no text block in response");
+      return null;
+    }
+
     const raw = textBlock.text
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```\s*$/i, "")
       .trim();
 
-    const parsed = JSON.parse(raw) as LLMAnswer;
-    if (!parsed.verdict || !parsed.answer) return null;
-    return parsed;
-  } catch (err) {
-    console.error("[llm] error:", err);
+    try {
+      const parsed = JSON.parse(raw) as LLMAnswer;
+      if (!parsed.verdict || !parsed.answer) {
+        console.warn("[llm] parsed JSON missing required fields:", raw);
+        return null;
+      }
+      console.log("[llm] success:", parsed.title);
+      return parsed;
+    } catch (parseErr) {
+      console.error("[llm] JSON parse failed. Raw response:", raw);
+      return null;
+    }
+  } catch (err: any) {
+    console.error("[llm] API error:", err?.message || err, err?.status);
     return null;
   }
 }
 
-// Heuristic: decide whether a query is worth sending to the LLM.
-// We only fall back to the LLM when the cheap keyword search failed,
-// AND the query looks like a real question (not a typo or single word).
+// Heuristic: should we invoke the LLM for this query?
 export function shouldUseLLM(query: string): boolean {
   const trimmed = query.trim();
-  if (trimmed.length < 8) return false;
+  if (trimmed.length < 6) return false;
+  const lower = trimmed.toLowerCase();
+  if (/\?|^(what|which|how|why|when|can|should|is|are|does|do|recommend|suggest)\b/i.test(lower)) {
+    return true;
+  }
+  if (/\b(allerg|low[- ]carb|keto|healthy|kid|vegetarian|vegan|pair|go with)\b/i.test(lower)) {
+    return true;
+  }
   const words = trimmed.split(/\s+/).filter((w) => w.length > 1);
-  if (words.length < 3) return false;
-  return true;
+  return words.length >= 4;
 }
