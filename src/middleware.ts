@@ -13,7 +13,10 @@ export function middleware(request: NextRequest) {
     }
 
     // API routes needed by SpecOS — let them through
-    if (pathname.startsWith("/api/search")) {
+    if (
+      pathname.startsWith("/api/search") ||
+      pathname.startsWith("/api/dietary-definitions")
+    ) {
       return NextResponse.next();
     }
 
