@@ -7,9 +7,8 @@ const client = new Anthropic({
 
 const MODEL = "claude-haiku-4-5-20251001";
 
-// ─── Context Builder ────────────────────────────────────────────────────────────
 async function buildMenuContext(): Promise<string> {
-  const [foodRes, recipeRes, configRes, ingRes, linkRes] = await Promise.all([
+  const [foodRes, recipeRes, configRes, ingRes, linkRes, defRes] = await Promise.all([
     db.from("SearchIndex").select("id, title, content, tags").eq("contentType", "food"),
     db.from("SearchIndex").select("title, content, tags").eq("contentType", "recipe"),
     db.from("KitchenConfig").select("key, value, label, notes").then(
@@ -24,9 +23,32 @@ async function buildMenuContext(): Promise<string> {
       (r) => r,
       () => ({ data: [] as any[] })
     ),
+    db.from("DietaryDefinition").select("*").order("sortOrder").then(
+      (r) => r,
+      () => ({ data: [] as any[] })
+    ),
   ]);
 
   const sections: string[] = [];
+
+  const defs = (defRes as any).data || [];
+  if (defs.length > 0) {
+    sections.push(
+      "# DIETARY TERM DEFINITIONS (use these exact meanings; do not invent or soften)\n\n" +
+        defs
+          .map(
+            (d: any) =>
+              `- **${d.label}** (${d.key}): ${d.short_description} ${d.full_description}${
+                d.safe_for_celiac === true
+                  ? " [SAFE FOR CELIAC]"
+                  : d.safe_for_celiac === false
+                  ? " [NOT SAFE FOR CELIAC]"
+                  : ""
+              }`
+          )
+          .join("\n")
+    );
+  }
 
   const config = (configRes as any).data || [];
   if (config.length > 0) {
@@ -103,6 +125,7 @@ Rules:
 2. Be concise. Staff are busy. Short, punchy answers.
 3. For any allergy or dietary question, ALWAYS:
    - Give a clear verdict ("safe", "warning", or "info")
+   - Use the DIETARY TERM DEFINITIONS section verbatim — do not soften "gluten-friendly" to imply safety for celiac.
    - Check the KITCHEN CONFIG for cross-contamination flags (shared fryer, shared grill, etc.)
    - Include: "Confirm with kitchen before serving."
 4. If the answer requires multiple items (e.g. "vegan options"), list them.
@@ -182,7 +205,6 @@ export async function askLLM(query: string): Promise<LLMAnswer | null> {
   }
 }
 
-// Heuristic: should we invoke the LLM for this query?
 export function shouldUseLLM(query: string): boolean {
   const trimmed = query.trim();
   if (trimmed.length < 6) return false;
