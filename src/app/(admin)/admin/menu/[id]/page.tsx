@@ -13,7 +13,7 @@ const DIETARY_OPTIONS = [
   "vegan",
   "vegetarian",
   "gluten-free",
-  "gluten-free-friendly",
+  "gluten-friendly",
   "dairy-free",
   "dairy-free-friendly",
   "pescatarian",
@@ -283,8 +283,7 @@ export default function MenuItemEditorPage() {
           </Link>
         </div>
         <p className="text-xs text-gray-500 mb-3">
-          Tick ingredients that this item contains. When you change an ingredient (e.g. swap soy sauce → tamari),
-          every linked item updates automatically.
+          Tick ingredients that this item contains. When you change an ingredient, every linked item updates automatically.
         </p>
         <div className="max-h-[300px] overflow-y-auto space-y-2 border border-gray-100 rounded-lg p-2">
           {ingredientLibrary.map((ing) => (
