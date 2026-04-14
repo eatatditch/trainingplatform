@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, Loader2, AlertTriangle, X, Sparkles, Zap, LogOut, Mic, MicOff, Utensils, CheckCircle2, Leaf, Brain, Info } from "lucide-react";
+import { Search, Loader2, AlertTriangle, X, Sparkles, Zap, LogOut, Mic, MicOff, Utensils, CheckCircle2, Leaf, Brain, Info, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -62,6 +62,15 @@ interface SearchResult {
   sectionSlug: string;
   moduleSlug: string;
   tags: string[];
+}
+
+interface Definition {
+  key: string;
+  label: string;
+  short_description: string;
+  full_description: string;
+  safe_for_celiac: boolean | null;
+  icon: string | null;
 }
 
 function LoginScreen() {
@@ -147,6 +156,8 @@ export default function SpecOSPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [listening, setListening] = useState(false);
+  const [definitions, setDefinitions] = useState<Definition[]>([]);
+  const [expandedDef, setExpandedDef] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
@@ -157,6 +168,14 @@ export default function SpecOSPage() {
       setChecking(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/dietary-definitions")
+      .then((r) => r.json())
+      .then((data) => setDefinitions(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [user]);
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -642,6 +661,54 @@ export default function SpecOSPage() {
         {searched && !loading && !recipe && !foodItem && !foodList && !aiAnswer && !answer && results.length === 0 && (
           <div className="mt-6 text-center">
             <p className="text-gray-500">No results found. Try a different search.</p>
+          </div>
+        )}
+
+        {/* Allergen Key — always visible at bottom */}
+        {definitions.length > 0 && (
+          <div className="mt-6 mb-8 bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-800 flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-ditch-orange" />
+              <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest">Allergen Key</span>
+            </div>
+            <div className="divide-y divide-gray-800">
+              {definitions.map((d) => {
+                const isExpanded = expandedDef === d.key;
+                return (
+                  <button
+                    key={d.key}
+                    onClick={() => setExpandedDef(isExpanded ? null : d.key)}
+                    className="w-full px-5 py-2.5 flex items-start gap-3 text-left hover:bg-gray-800/50"
+                  >
+                    {d.icon && <span className="text-lg leading-none mt-0.5">{d.icon}</span>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-100 text-sm">{d.label}</span>
+                        {d.safe_for_celiac === true && (
+                          <span className="px-2 py-0.5 bg-ditch-green/20 text-ditch-green rounded-full text-[10px] font-semibold uppercase">
+                            Celiac-Safe
+                          </span>
+                        )}
+                        {d.safe_for_celiac === false && (
+                          <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full text-[10px] font-semibold uppercase">
+                            NOT Celiac-Safe
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5">{d.short_description}</p>
+                      {isExpanded && (
+                        <p className="text-xs text-gray-300 mt-2 leading-relaxed whitespace-pre-line">
+                          {d.full_description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="px-5 py-2 text-[10px] text-gray-600 border-t border-gray-800">
+              Tap any term for the full explanation.
+            </p>
           </div>
         )}
       </main>
