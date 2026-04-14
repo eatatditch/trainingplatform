@@ -78,7 +78,6 @@ async function augmentFoodItem(foodItemId: string, base: any): Promise<any> {
     inheritedAllergens.add("shellfish");
     crossWarnings.push(configNotes["shared_fryer_shellfish"] || "Shared fryer contains shellfish.");
   }
-  // Chip fryer specifically — cross-contamination from shared chip fryer
   if (hasChips && config.chip_fryer_shares_gluten === true) {
     inheritedAllergens.add("gluten");
     const chipNote = configNotes["chip_fryer_shares_gluten"] || "Chips are fried in a shared fryer with gluten items — cross-contamination risk.";
@@ -165,7 +164,8 @@ export async function GET(request: NextRequest) {
       .select("*")
       .eq("contentType", "food");
 
-    const matches = (allFood || []).filter((item: any) => {
+    // First pass: static tag filter
+    const tagMatches = (allFood || []).filter((item: any) => {
       const tagSet = new Set((item.tags || []).map((t: string) => t.toLowerCase()));
       if (targetDietary) {
         if (targetDietary === "vegan") return tagSet.has("vegan");
@@ -183,6 +183,36 @@ export async function GET(request: NextRequest) {
       }
       return false;
     });
+
+    // Second pass: apply cross-contamination augmentation (KitchenConfig +
+    // linked ingredients) and exclude items that pick up the restricted
+    // allergen via shared equipment or an ingredient.
+    const excludedAllergen =
+      targetAllergen ||
+      (targetDietary === "gluten-free"
+        ? "gluten"
+        : targetDietary === "dairy-free"
+        ? "dairy"
+        : null);
+
+    let matches = tagMatches;
+    if (excludedAllergen) {
+      const augmented = await Promise.all(
+        tagMatches.map(async (item: any) => {
+          const base = parseFoodItem(item.title, item.content, item.tags);
+          const aug = await augmentFoodItem(item.id, base);
+          return { raw: item, aug };
+        })
+      );
+      matches = augmented
+        .filter(({ aug }) => {
+          const has = (aug.allergens || []).some((a: string) =>
+            a.includes(excludedAllergen) || excludedAllergen.includes(a)
+          );
+          return !has;
+        })
+        .map(({ raw }) => raw);
+    }
 
     if (matches.length > 0) {
       const items = matches.map((m: any) => parseFoodItem(m.title, m.content, m.tags));
