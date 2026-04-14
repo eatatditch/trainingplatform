@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { askLLM, shouldUseLLM } from "@/lib/llm";
 
 // ─── Allergen / Dietary Detection ────────────────────────────────────────────
 const ALLERGEN_PATTERNS: Record<string, RegExp> = {
@@ -33,6 +34,64 @@ function detectDietary(q: string): string | null {
     if (re.test(q)) return name;
   }
   return null;
+}
+
+// ─── Kitchen Config / Ingredient Augmentation ───────────────────────────────
+// Reads KitchenConfig + linked Ingredients and enriches a food item with
+// bubbled-up allergens and shared-equipment warnings.
+async function augmentFoodItem(foodItemId: string, base: any): Promise<any> {
+  const [cfgRes, linksRes] = await Promise.all([
+    db.from("KitchenConfig").select("key, value, label, notes"),
+    db
+      .from("FoodItemIngredient")
+      .select("ingredient:Ingredient(id, name, allergens, notes)")
+      .eq("foodItemId", foodItemId),
+  ]);
+
+  const config: Record<string, any> = {};
+  const configNotes: Record<string, string> = {};
+  for (const row of (cfgRes as any).data || []) {
+    config[row.key] = row.value;
+    if (row.notes) configNotes[row.key] = row.notes;
+  }
+
+  const inheritedAllergens = new Set<string>(base.allergens || []);
+  const crossWarnings: string[] = [];
+
+  // Ingredient-driven allergens
+  const linkedIngredients: any[] = [];
+  for (const link of (linksRes as any).data || []) {
+    const ing = link.ingredient;
+    if (!ing) continue;
+    linkedIngredients.push(ing);
+    for (const a of ing.allergens || []) inheritedAllergens.add(a);
+  }
+
+  // Kitchen-wide cross-contamination rules
+  const tagSet = new Set((base.tags || []).map((t: string) => t.toLowerCase()));
+  const isFried =
+    tagSet.has("fried") ||
+    /batter|fried|tender|fries|churro/i.test(base.name + " " + (base.ingredients || ""));
+  const onGrill = /grill|sizzle|seared|marinated/i.test(base.description + " " + (base.ingredients || ""));
+
+  if (isFried && config.shared_fryer_gluten === true) {
+    inheritedAllergens.add("gluten");
+    crossWarnings.push(configNotes["shared_fryer_gluten"] || "Shared fryer contains gluten.");
+  }
+  if (isFried && config.shared_fryer_shellfish === true) {
+    inheritedAllergens.add("shellfish");
+    crossWarnings.push(configNotes["shared_fryer_shellfish"] || "Shared fryer contains shellfish.");
+  }
+  if (onGrill && config.shared_grill_shellfish === true && !tagSet.has("contains-shellfish")) {
+    crossWarnings.push(configNotes["shared_grill_shellfish"] || "Shared grill contains shellfish.");
+  }
+
+  return {
+    ...base,
+    allergens: Array.from(inheritedAllergens),
+    linkedIngredients,
+    crossWarnings,
+  };
 }
 
 // ─── Food Item Parsing ───────────────────────────────────────────────────────
@@ -76,6 +135,7 @@ export async function GET(request: NextRequest) {
       recipe: null,
       foodItem: null,
       foodList: null,
+      aiAnswer: null,
       results: [],
     });
   }
@@ -93,7 +153,6 @@ export async function GET(request: NextRequest) {
     .trim();
 
   // ─── Step 1: Dietary/Allergen List Queries ─────────────────────────────────
-  // e.g. "what items are gluten-free", "vegan options", "no dairy"
   const listPattern = /\b(what|which|any|list|show|all|items?|options?|are|have|without|no|avoid)\b/i;
   const isListQuery = listPattern.test(query);
   const targetDietary = detectDietary(query);
@@ -221,19 +280,23 @@ export async function GET(request: NextRequest) {
 
   if (scoredFood.length > 0 && scoredFood[0].score >= 50) {
     const top = scoredFood[0];
-    const foodItem = parseFoodItem(top.title, top.content, top.tags);
+    const base = parseFoodItem(top.title, top.content, top.tags);
+    const foodItem = await augmentFoodItem(top.id, base);
 
-    // If query asks about a specific allergen/dietary restriction for this item,
-    // add a clear verdict.
     let allergyVerdict: { safe: boolean; text: string } | null = null;
     if (targetAllergen) {
       const contains = foodItem.allergens.some(
         (a: string) => a.includes(targetAllergen) || targetAllergen.includes(a)
       );
+      const crossMatch = foodItem.crossWarnings.some((w: string) =>
+        w.toLowerCase().includes(targetAllergen)
+      );
       allergyVerdict = {
-        safe: !contains,
+        safe: !contains && !crossMatch,
         text: contains
           ? `⚠️ ${foodItem.name} contains ${targetAllergen} — NOT safe for ${targetAllergen} allergies.`
+          : crossMatch
+          ? `⚠️ Cross-contamination risk: ${foodItem.crossWarnings.find((w: string) => w.toLowerCase().includes(targetAllergen)) || ""}`
           : `${foodItem.name} does not contain ${targetAllergen}. Always confirm with the kitchen for cross-contamination.`,
       };
     } else if (targetDietary) {
@@ -332,16 +395,28 @@ export async function GET(request: NextRequest) {
     };
   }
 
+  // ─── Step 5: LLM Fallback ─────────────────────────────────────────────────
+  // If keyword search found nothing useful AND the query looks like a real
+  // question, call the LLM with the full menu + kitchen config as context.
+  const noStrongKeywordMatch =
+    !answer || (answer && scoredModules[0]?.score < 30);
+
+  let aiAnswer = null;
+  if (noStrongKeywordMatch && shouldUseLLM(query)) {
+    aiAnswer = await askLLM(query);
+  }
+
   return NextResponse.json({
     answer,
     recipe: null,
     foodItem: null,
     foodList: null,
+    aiAnswer,
     results: scoredModules.slice(0, 10),
   });
 }
 
-// ─── Recipe Parser (unchanged) ───────────────────────────────────────────────
+// ─── Recipe Parser ───────────────────────────────────────────────────────────
 function parseRecipe(title: string, content: string): any {
   const name = title.replace(/ Recipe$/, "");
   const glassLine = content.match(/Glass:\s*([^\n]+)/i);
