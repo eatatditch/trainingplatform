@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { askLLM, shouldUseLLM } from "@/lib/llm";
 
-// ─── Allergen / Dietary Detection ────────────────────────────────────────────
 const ALLERGEN_PATTERNS: Record<string, RegExp> = {
   gluten: /\b(gluten|wheat|celiac)\b/i,
   dairy: /\b(dairy|milk|lactose|cheese)\b/i,
@@ -36,9 +35,6 @@ function detectDietary(q: string): string | null {
   return null;
 }
 
-// ─── Kitchen Config / Ingredient Augmentation ───────────────────────────────
-// Reads KitchenConfig + linked Ingredients and enriches a food item with
-// bubbled-up allergens and shared-equipment warnings.
 async function augmentFoodItem(foodItemId: string, base: any): Promise<any> {
   const [cfgRes, linksRes] = await Promise.all([
     db.from("KitchenConfig").select("key, value, label, notes"),
@@ -58,7 +54,6 @@ async function augmentFoodItem(foodItemId: string, base: any): Promise<any> {
   const inheritedAllergens = new Set<string>(base.allergens || []);
   const crossWarnings: string[] = [];
 
-  // Ingredient-driven allergens
   const linkedIngredients: any[] = [];
   for (const link of (linksRes as any).data || []) {
     const ing = link.ingredient;
@@ -67,7 +62,6 @@ async function augmentFoodItem(foodItemId: string, base: any): Promise<any> {
     for (const a of ing.allergens || []) inheritedAllergens.add(a);
   }
 
-  // Kitchen-wide cross-contamination rules
   const tagSet = new Set((base.tags || []).map((t: string) => t.toLowerCase()));
   const isFried =
     tagSet.has("fried") ||
@@ -94,7 +88,6 @@ async function augmentFoodItem(foodItemId: string, base: any): Promise<any> {
   };
 }
 
-// ─── Food Item Parsing ───────────────────────────────────────────────────────
 function parseFoodItem(title: string, content: string, tags: string[]): any {
   const field = (label: string) => {
     const re = new RegExp(`${label}:\\s*([^\\n]+)`, "i");
@@ -126,7 +119,6 @@ function parseFoodItem(title: string, content: string, tags: string[]): any {
   };
 }
 
-// ─── Main Handler ────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim();
   if (!query) {
@@ -140,10 +132,11 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  console.log("[search] query:", query);
+
   const queryLower = query.toLowerCase();
   const searchTerms = queryLower.split(/\s+/).filter((t) => t.length > 2);
 
-  // Strip question words
   const cleaned = queryLower
     .replace(/how do (i|you) make (a |an |the )?/gi, "")
     .replace(/what('s| is| goes| comes| are) (in|on) (a |an |the )?/gi, "")
@@ -152,12 +145,12 @@ export async function GET(request: NextRequest) {
     .replace(/[?!.,]/g, "")
     .trim();
 
-  // ─── Step 1: Dietary/Allergen List Queries ─────────────────────────────────
   const listPattern = /\b(what|which|any|list|show|all|items?|options?|are|have|without|no|avoid)\b/i;
   const isListQuery = listPattern.test(query);
   const targetDietary = detectDietary(query);
   const targetAllergen = detectAllergen(query);
 
+  // ─── Step 1: Dietary/Allergen List Queries ─────────────────────────────────
   if (isListQuery && (targetDietary || targetAllergen)) {
     const { data: allFood } = await db
       .from("SearchIndex")
@@ -236,6 +229,7 @@ export async function GET(request: NextRequest) {
       answer: null,
       foodItem: null,
       foodList: null,
+      aiAnswer: null,
       recipe: {
         ...recipe,
         source: {
@@ -324,9 +318,28 @@ export async function GET(request: NextRequest) {
       answer: null,
       recipe: null,
       foodList: null,
+      aiAnswer: null,
       foodItem: { ...foodItem, verdict: allergyVerdict },
       results: [],
     });
+  }
+
+  // ─── Step 3.5: LLM for complex questions with no direct match ────────────
+  // If the query is a real question but no specific recipe/food matched,
+  // invoke the LLM BEFORE falling through to module content search.
+  if (shouldUseLLM(query)) {
+    console.log("[search] no recipe/food match, calling LLM for:", query);
+    const earlyLLM = await askLLM(query);
+    if (earlyLLM) {
+      return NextResponse.json({
+        answer: null,
+        recipe: null,
+        foodItem: null,
+        foodList: null,
+        aiAnswer: earlyLLM,
+        results: [],
+      });
+    }
   }
 
   // ─── Step 4: Module Content Search ─────────────────────────────────────────
@@ -395,28 +408,16 @@ export async function GET(request: NextRequest) {
     };
   }
 
-  // ─── Step 5: LLM Fallback ─────────────────────────────────────────────────
-  // If keyword search found nothing useful AND the query looks like a real
-  // question, call the LLM with the full menu + kitchen config as context.
-  const noStrongKeywordMatch =
-    !answer || (answer && scoredModules[0]?.score < 30);
-
-  let aiAnswer = null;
-  if (noStrongKeywordMatch && shouldUseLLM(query)) {
-    aiAnswer = await askLLM(query);
-  }
-
   return NextResponse.json({
     answer,
     recipe: null,
     foodItem: null,
     foodList: null,
-    aiAnswer,
+    aiAnswer: null,
     results: scoredModules.slice(0, 10),
   });
 }
 
-// ─── Recipe Parser ───────────────────────────────────────────────────────────
 function parseRecipe(title: string, content: string): any {
   const name = title.replace(/ Recipe$/, "");
   const glassLine = content.match(/Glass:\s*([^\n]+)/i);
