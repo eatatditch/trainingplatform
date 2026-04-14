@@ -63,9 +63,11 @@ async function augmentFoodItem(foodItemId: string, base: any): Promise<any> {
   }
 
   const tagSet = new Set((base.tags || []).map((t: string) => t.toLowerCase()));
+  const combinedText = (base.name + " " + (base.description || "") + " " + (base.ingredients || "")).toLowerCase();
   const isFried =
     tagSet.has("fried") ||
-    /batter|fried|tender|fries|churro/i.test(base.name + " " + (base.ingredients || ""));
+    /batter|fried|tender|fries|churro|chips/i.test(combinedText);
+  const hasChips = /chips/i.test(combinedText);
   const onGrill = /grill|sizzle|seared|marinated/i.test(base.description + " " + (base.ingredients || ""));
 
   if (isFried && config.shared_fryer_gluten === true) {
@@ -75,6 +77,12 @@ async function augmentFoodItem(foodItemId: string, base: any): Promise<any> {
   if (isFried && config.shared_fryer_shellfish === true) {
     inheritedAllergens.add("shellfish");
     crossWarnings.push(configNotes["shared_fryer_shellfish"] || "Shared fryer contains shellfish.");
+  }
+  // Chip fryer specifically — cross-contamination from shared chip fryer
+  if (hasChips && config.chip_fryer_shares_gluten === true) {
+    inheritedAllergens.add("gluten");
+    const chipNote = configNotes["chip_fryer_shares_gluten"] || "Chips are fried in a shared fryer with gluten items — cross-contamination risk.";
+    if (!crossWarnings.includes(chipNote)) crossWarnings.push(chipNote);
   }
   if (onGrill && config.shared_grill_shellfish === true && !tagSet.has("contains-shellfish")) {
     crossWarnings.push(configNotes["shared_grill_shellfish"] || "Shared grill contains shellfish.");
@@ -325,8 +333,6 @@ export async function GET(request: NextRequest) {
   }
 
   // ─── Step 3.5: LLM for complex questions with no direct match ────────────
-  // If the query is a real question but no specific recipe/food matched,
-  // invoke the LLM BEFORE falling through to module content search.
   if (shouldUseLLM(query)) {
     console.log("[search] no recipe/food match, calling LLM for:", query);
     const earlyLLM = await askLLM(query);
