@@ -111,7 +111,7 @@ export function PalomaMan({
         </div>
       )}
       <img
-        src="/api/mascot/paloma"
+        src="/api/mascot/paloma?v=2"
         alt="Paloma Man"
         width={img}
         height={img}
