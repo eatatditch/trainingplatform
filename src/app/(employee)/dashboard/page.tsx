@@ -72,8 +72,25 @@ export default async function DashboardPage() {
   const incomplete = assignments.filter((a: any) => !completedIds.has(a.moduleId));
   const required = assignments.filter((a: any) => a.isRequired && !completedIds.has(a.moduleId));
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  // Greeting is Ditch-local time (America/New_York). Vercel runs in UTC,
+  // so plain `new Date().getHours()` would say "Good morning" at 9pm EST.
+  const localHour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date())
+  );
+  const greeting =
+    localHour < 5
+      ? "Working late"
+      : localHour < 12
+      ? "Good morning"
+      : localHour < 17
+      ? "Good afternoon"
+      : localHour < 22
+      ? "Good evening"
+      : "Still at it";
 
   return (
     <div className="space-y-6">
