@@ -16,6 +16,7 @@ import {
   ArrowRight,
   Star,
 } from "lucide-react";
+import { PalomaMan } from "@/components/paloma-man";
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -103,6 +104,11 @@ export default async function DashboardPage() {
             <ProgressBar value={completedAssigned} max={totalAssigned} showLabel={false} size="md" />
           </div>
         )}
+      </div>
+
+      {/* Paloma Man — your guide */}
+      <div className="flex justify-end">
+        <PalomaMan size="md" message={`${greeting}, ${firstName}! Need anything? Tap "Search & Answers" anytime — I've got the menu, allergens, and more.`} />
       </div>
 
       {/* Announcements */}
