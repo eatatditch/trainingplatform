@@ -7,15 +7,27 @@ import { CheckCircle2, Clock } from "lucide-react";
 
 const REQUIRED_SECONDS = 300; // 5 minutes
 
-export function MarkCompleteButton({ moduleId }: { moduleId: string }) {
+interface MarkCompleteButtonProps {
+  moduleId: string;
+  /** When true, the 5-minute review timer is skipped for this user. */
+  skipReviewTimer?: boolean;
+}
+
+export function MarkCompleteButton({ moduleId, skipReviewTimer = false }: MarkCompleteButtonProps) {
   const [loading, setLoading] = useState(false);
   const [secondsOnPage, setSecondsOnPage] = useState(0);
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(skipReviewTimer);
   const activeRef = useRef(true);
   const tickRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
   useEffect(() => {
+    // Admin override — no timer, unlocked immediately.
+    if (skipReviewTimer) {
+      setUnlocked(true);
+      return;
+    }
+
     // Load accumulated time for this module from localStorage
     const storageKey = `module-active-time-${moduleId}`;
     const stored = parseInt(localStorage.getItem(storageKey) || "0");
@@ -48,7 +60,7 @@ export function MarkCompleteButton({ moduleId }: { moduleId: string }) {
       if (tickRef.current) clearInterval(tickRef.current);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [moduleId]);
+  }, [moduleId, skipReviewTimer]);
 
   const handleComplete = async () => {
     if (!unlocked) return;
