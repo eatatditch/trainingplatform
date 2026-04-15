@@ -23,6 +23,7 @@ interface Employee {
   location: string;
   phone: string;
   isActive: boolean;
+  skipReviewTimer: boolean;
   _count: { completions: number; assignments: number };
   trainingPaths: { id: string; title: string }[];
 }
@@ -86,6 +87,21 @@ export default function EmployeesPage() {
       body: JSON.stringify({ isActive: !emp.isActive }),
     });
     fetchData();
+  };
+
+  const toggleSkipReviewTimer = async (empId: string, skipReviewTimer: boolean) => {
+    await fetch(`/api/admin/employees/${empId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skipReviewTimer }),
+    });
+    // Optimistically update local state for the modal
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === empId ? { ...e, skipReviewTimer } : e))
+    );
+    setSelectedEmployee((prev) =>
+      prev && prev.id === empId ? { ...prev, skipReviewTimer } : prev
+    );
   };
 
   const openPathManager = (emp: Employee) => {
@@ -321,6 +337,29 @@ export default function EmployeesPage() {
       >
         {selectedEmployee && (
           <div className="space-y-4">
+            {/* Per-employee settings */}
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!selectedEmployee.skipReviewTimer}
+                  onChange={(e) =>
+                    toggleSkipReviewTimer(selectedEmployee.id, e.target.checked)
+                  }
+                  className="mt-0.5 rounded border-gray-300 text-ditch-orange focus:ring-ditch-orange"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-900">
+                    Skip 5-minute review timer
+                  </span>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    When enabled, this employee can mark modules complete instantly instead of
+                    waiting 5 minutes. Use for managers, trainers, or anyone re-certifying.
+                  </p>
+                </div>
+              </label>
+            </div>
+
             {/* Currently assigned paths */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Assigned Training Paths</h3>
