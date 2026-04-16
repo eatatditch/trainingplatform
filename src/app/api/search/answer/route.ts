@@ -152,8 +152,18 @@ export async function GET(request: NextRequest) {
     .replace(/[?!.,]/g, "")
     .trim();
 
-  const listPattern = /\b(what|which|any|list|show|all|items?|options?|are|have|without|no|avoid)\b/i;
-  const isListQuery = listPattern.test(query);
+  // Only treat this as a "give me the filtered menu list" query if the user
+  // is clearly asking for items/options/a list — otherwise "what is celiac?"
+  // matches "what" + the celiac pattern and hijacks the LLM path.
+  const listIntentPattern =
+    /\b(items?|options?|list|menu|dishes|drinks|which|any\s+(of\s+the\s+)?(items?|options?|dishes?|drinks?)|show\s+(me|all)|all\s+(the\s+)?(items?|options?|gluten|vegan|vegetarian|dairy|pescatarian)|without|no\s+(gluten|dairy|nuts?|shellfish|eggs?|soy|sesame|fish)|avoid)\b/i;
+  // Explanatory / definitional questions ("what is X?", "explain X", "tell me
+  // about X") should always go to the LLM, never the list branch.
+  const isExplanationQuery =
+    /^\s*(what\s+is|what\s+are|what\s+does|what\s+means|why\s+(is|do|does)|how\s+(do|does|is)|explain|define|tell\s+me\s+(about|what)|can\s+(you\s+)?explain)\b/i.test(
+      query
+    );
+  const isListQuery = !isExplanationQuery && listIntentPattern.test(query);
   const targetDietary = detectDietary(query);
   const targetAllergen = detectAllergen(query);
 
