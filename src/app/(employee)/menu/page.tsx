@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Loader2, AlertTriangle, X, Sparkles, CheckCircle2, Leaf, Brain, Info, Utensils, BookOpen } from "lucide-react";
 import { PalomaMan } from "@/components/paloma-man";
+import { SurfingLoader } from "@/components/surfing-loader";
 
 interface FoodItem {
   name: string;
@@ -147,6 +148,10 @@ export default function MenuPage() {
             </button>
           ))}
         </div>
+      )}
+
+      {searched && loading && (
+        <SurfingLoader />
       )}
 
       {searched && !loading && foodItem && (
