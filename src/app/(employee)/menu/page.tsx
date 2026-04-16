@@ -90,10 +90,10 @@ export default function MenuPage() {
     }
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => doSearch(query), 350);
-    return () => clearTimeout(timer);
-  }, [query, doSearch]);
+  const runSearch = (q: string) => {
+    setQuery(q);
+    doSearch(q);
+  };
 
   const clearSearch = () => {
     setQuery("");
@@ -115,7 +115,7 @@ export default function MenuPage() {
         </p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); inputRef.current?.blur(); }} className="relative">
+      <form onSubmit={(e) => { e.preventDefault(); doSearch(query); inputRef.current?.blur(); }} className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <input
           ref={inputRef}
@@ -148,7 +148,7 @@ export default function MenuPage() {
           ].map((label) => (
             <button
               key={label}
-              onClick={() => setQuery(label)}
+              onClick={() => runSearch(label)}
               className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-ditch-orange hover:text-ditch-orange"
             >
               {label}
@@ -261,7 +261,7 @@ export default function MenuPage() {
             {foodList.items.map((item) => (
               <button
                 key={item.name}
-                onClick={() => setQuery(item.name)}
+                onClick={() => runSearch(item.name)}
                 className="text-left p-4 bg-white border border-gray-200 rounded-xl hover:border-ditch-orange"
               >
                 <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{item.category}</p>
@@ -317,7 +317,7 @@ export default function MenuPage() {
                 {aiAnswer.items.map((item) => (
                   <button
                     key={item}
-                    onClick={() => setQuery(item)}
+                    onClick={() => runSearch(item)}
                     className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-full text-xs font-medium"
                   >
                     {item}
