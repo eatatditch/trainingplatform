@@ -86,9 +86,9 @@ export function SurfingLoader({ dark = false, message }: SurfingLoaderProps) {
           </path>
         </svg>
 
-        {/* Paloma Man — surfs left to right, bobbing on the wave */}
-        <div className="absolute bottom-4 left-0 w-full pointer-events-none">
-          <div className="surfer-track relative inline-block">
+        {/* Paloma Man — surfs across the whole wave, lands a backflip, rides back */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="surfer-track">
             {/* Surfboard under his feet */}
             <svg
               width="96"
@@ -129,30 +129,6 @@ export function SurfingLoader({ dark = false, message }: SurfingLoaderProps) {
         </p>
       </div>
 
-      <style jsx>{`
-        .surfer-track {
-          animation: surf-x 3.5s ease-in-out infinite;
-          display: inline-block;
-          transform-origin: bottom center;
-        }
-        @keyframes surf-x {
-          0% {
-            transform: translateX(-10%) translateY(0) rotate(-4deg);
-          }
-          25% {
-            transform: translateX(25%) translateY(-4px) rotate(2deg);
-          }
-          50% {
-            transform: translateX(55%) translateY(0) rotate(-2deg);
-          }
-          75% {
-            transform: translateX(80%) translateY(-4px) rotate(3deg);
-          }
-          100% {
-            transform: translateX(-10%) translateY(0) rotate(-4deg);
-          }
-        }
-      `}</style>
     </div>
   );
 }
