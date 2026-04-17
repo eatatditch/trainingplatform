@@ -15,7 +15,8 @@ export function middleware(request: NextRequest) {
     // API routes needed by SpecOS — let them through
     if (
       pathname.startsWith("/api/search") ||
-      pathname.startsWith("/api/dietary-definitions")
+      pathname.startsWith("/api/dietary-definitions") ||
+      pathname.startsWith("/api/mascot")
     ) {
       return NextResponse.next();
     }
