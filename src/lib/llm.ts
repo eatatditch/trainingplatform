@@ -230,8 +230,18 @@ export async function askLLM(query: string): Promise<LLMAnswer | null> {
       .replace(/\s*```\s*$/i, "")
       .trim();
 
+    // Try to extract JSON even when the model wraps it in extra text.
+    let jsonStr = raw;
+    if (!raw.startsWith("{")) {
+      const firstBrace = raw.indexOf("{");
+      const lastBrace = raw.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        jsonStr = raw.substring(firstBrace, lastBrace + 1);
+      }
+    }
+
     try {
-      const parsed = JSON.parse(raw) as LLMAnswer;
+      const parsed = JSON.parse(jsonStr) as LLMAnswer;
       if (!parsed.verdict || !parsed.answer) {
         console.warn("[llm] parsed JSON missing required fields:", raw);
         return null;
@@ -240,6 +250,11 @@ export async function askLLM(query: string): Promise<LLMAnswer | null> {
       return parsed;
     } catch (parseErr) {
       console.error("[llm] JSON parse failed. Raw response:", raw);
+      // Fallback: if the model returned plain text instead of JSON, wrap it.
+      if (raw.length > 10 && !raw.includes("{")) {
+        console.log("[llm] falling back to plain-text wrapper");
+        return { verdict: "info", title: "AI Answer", answer: raw, items: [] };
+      }
       return null;
     }
   } catch (err: any) {
