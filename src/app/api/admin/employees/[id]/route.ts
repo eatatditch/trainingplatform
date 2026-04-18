@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: employee } = await db
     .from("User")
-    .select("id, email, firstName, lastName, role, location, phone, hireDate, isActive, createdAt")
+    .select("id, email, firstName, lastName, role, position, location, phone, hireDate, isActive, createdAt")
     .eq("id", id)
     .single();
 
@@ -68,6 +68,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (data.lastName) updateData.lastName = data.lastName;
   if (data.email) updateData.email = data.email;
   if (data.role) updateData.role = data.role;
+  if (data.position !== undefined) updateData.position = data.position || null;
   if (data.location !== undefined) updateData.location = data.location;
   if (data.phone !== undefined) updateData.phone = data.phone;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
