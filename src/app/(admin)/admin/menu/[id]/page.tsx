@@ -18,7 +18,7 @@ const DIETARY_OPTIONS = [
   "dairy-free-friendly",
   "pescatarian",
 ];
-const CATEGORIES = ["Starters", "Tacos", "Bowls", "Platos", "Handhelds", "Dessert", "Sides"];
+const CATEGORIES = ["Starters", "Tacos", "Bowls", "Platos", "Handhelds", "Dessert", "Sides", "Kids"];
 
 interface Ingredient {
   id: string;
