@@ -115,6 +115,7 @@ export default function SpecOSPage() {
     { label: "Gluten-free items", icon: "🌾" }, { label: "Vegan options", icon: "🥬" },
     { label: "Chips + Guac", icon: "🥑" }, { label: "Korean Chicken Sammy", icon: "🍗" },
     { label: "Sirloin Steak", icon: "🥩" }, { label: "Churros", icon: "🍩" },
+    { label: "Kids menu", icon: "🧒" },
   ];
 
   const showEmpty = searched && !loading && !recipe && !foodItem && !foodList && !aiAnswer && !answer && results.length === 0;

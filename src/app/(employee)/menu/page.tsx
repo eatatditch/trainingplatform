@@ -145,6 +145,7 @@ export default function MenuPage() {
             "Baja Fish Taco",
             "Lobster Roll",
             "Poké Bowl",
+            "Kids menu",
           ].map((label) => (
             <button
               key={label}

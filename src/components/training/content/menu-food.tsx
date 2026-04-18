@@ -249,6 +249,60 @@ export function MenuFoodContent() {
                 </CardGrid>
               ),
             },
+            {
+              label: "Kids",
+              content: (
+                <div>
+                  <p className="text-gray-600 text-sm mb-4">
+                    For the kiddos. All kids meals come with a beverage. Fruit cup
+                    can be swapped for fries at no charge.
+                  </p>
+                  <CardGrid columns={2}>
+                    <KnowledgeCard
+                      title="Kids Fried Chicken Tacos"
+                      price="$10.85"
+                      badge="Kids"
+                      description="Fried chicken, corn tortillas, mixed cheese. Served with a side fruit cup and a beverage."
+                    />
+                    <KnowledgeCard
+                      title="Kids Steak Tacos"
+                      price="$10.85"
+                      badge="Kids"
+                      description="Grilled steak, corn tortillas, mixed cheese. Served with a side fruit cup and a beverage."
+                    />
+                    <KnowledgeCard
+                      title="Kids Baja Fish Tacos"
+                      price="$10.85"
+                      badge="Kids"
+                      description="Fried fish, corn tortillas, mixed cheese. Served with a side fruit cup and a beverage."
+                    />
+                    <KnowledgeCard
+                      title="Kids Grilled Fish Tacos"
+                      price="$10.85"
+                      badge="Kids"
+                      description="Grilled fish, corn tortillas, mixed cheese. Served with a side fruit cup and a beverage."
+                    />
+                    <KnowledgeCard
+                      title="Kids Quesadilla"
+                      price="$10.85"
+                      badge="Kids, Customizable"
+                      description="Corn tortillas, mixed cheese. Served with a side fruit cup and a beverage."
+                      details={[
+                        "Add beans +$1",
+                        "Add fried chicken +$1",
+                        "Add steak +$1",
+                      ]}
+                    />
+                    <KnowledgeCard
+                      title="Fruit Cup"
+                      price="$3.25"
+                      badge="Kids, Side"
+                      description="Fresh pineapple & watermelon cubes. Available as a kids side or standalone."
+                    />
+                  </CardGrid>
+                </div>
+              ),
+            },
           ]}
         />
       </SectionBlock>
@@ -265,6 +319,7 @@ export function MenuFoodContent() {
         items={[
           "Know every item, price, and description on the menu",
           "Starters range from $8-$20, tacos $4-$5, bowls $21-$26",
+          "Kids meals are $10.85 and include a beverage — fruit can be swapped for fries",
           "Be ready to describe ingredients and make recommendations",
           "Know allergens and dietary options (vegetarian, gluten-free)",
           "Check for daily specials and 86'd items before every shift",
