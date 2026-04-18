@@ -11,8 +11,9 @@ import { SearchInput } from "@/components/ui/search-input";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
-  Plus, Users, Eye, EyeOff, Route, X, ClipboardCheck,
+  Plus, Users, Eye, EyeOff, Route, X, ClipboardCheck, Briefcase,
 } from "lucide-react";
+import { POSITIONS, POSITION_DEPARTMENTS, POSITION_NOTES, type Position } from "@/lib/positions";
 
 interface Employee {
   id: string;
@@ -20,6 +21,7 @@ interface Employee {
   lastName: string;
   email: string;
   role: string;
+  position: Position | null;
   location: string;
   phone: string;
   isActive: boolean;
@@ -34,10 +36,24 @@ const emptyForm = {
   email: "",
   password: "",
   role: "EMPLOYEE",
+  position: "" as Position | "",
   location: "",
   phone: "",
   trainingPathIds: [] as string[],
 };
+
+const POSITION_OPTIONS = [
+  { value: "", label: "— Select position —" },
+  ...POSITIONS.map((p) => ({
+    value: p,
+    label: POSITION_NOTES[p] ? `${p} (${POSITION_NOTES[p]})` : p,
+  })),
+];
+
+const POSITION_FILTER_OPTIONS = [
+  { value: "", label: "All Positions" },
+  ...POSITIONS.map((p) => ({ value: p, label: p })),
+];
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -49,6 +65,7 @@ export default function EmployeesPage() {
   const [form, setForm] = useState({ ...emptyForm });
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [positionFilter, setPositionFilter] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -154,8 +171,23 @@ export default function EmployeesPage() {
       `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emp.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = !roleFilter || emp.role === roleFilter;
-    return matchesSearch && matchesRole;
+    const matchesPosition = !positionFilter || emp.position === positionFilter;
+    return matchesSearch && matchesRole && matchesPosition;
   });
+
+  const updatePosition = async (empId: string, position: Position | "") => {
+    await fetch(`/api/admin/employees/${empId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ position: position || null }),
+    });
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === empId ? { ...e, position: (position || null) as Position | null } : e))
+    );
+    setSelectedEmployee((prev) =>
+      prev && prev.id === empId ? { ...prev, position: (position || null) as Position | null } : prev
+    );
+  };
 
   const roleOptions = [
     { value: "", label: "All Roles" },
@@ -185,16 +217,21 @@ export default function EmployeesPage() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <SearchInput
           placeholder="Search by name or email..."
           onSearch={setSearchQuery}
-          className="flex-1"
+          className="flex-1 min-w-[200px]"
         />
         <Select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
           options={roleOptions}
+        />
+        <Select
+          value={positionFilter}
+          onChange={(e) => setPositionFilter(e.target.value)}
+          options={POSITION_FILTER_OPTIONS}
         />
       </div>
 
@@ -217,6 +254,12 @@ export default function EmployeesPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium text-gray-900">{emp.firstName} {emp.lastName}</p>
                     <Badge>{emp.role}</Badge>
+                    {emp.position && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-ditch-navy/10 text-ditch-navy rounded-full text-xs font-medium">
+                        <Briefcase className="w-3 h-3" />
+                        {emp.position}
+                      </span>
+                    )}
                     {emp.isActive ? <Badge variant="completed">Active</Badge> : <Badge>Inactive</Badge>}
                   </div>
                   <p className="text-xs text-gray-400">{emp.email}{emp.location ? ` · ${emp.location}` : ""}</p>
@@ -284,7 +327,7 @@ export default function EmployeesPage() {
           <Input label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Temporary password" />
           <div className="grid grid-cols-2 gap-4">
             <Select
-              label="Role"
+              label="Role (permission tier)"
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
               options={[
@@ -294,9 +337,17 @@ export default function EmployeesPage() {
                 { value: "SUPER_ADMIN", label: "Super Admin" },
               ]}
             />
-            <Input label="Location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Bay Shore" />
+            <Select
+              label="Position (floor job)"
+              value={form.position}
+              onChange={(e) => setForm({ ...form, position: e.target.value as Position | "" })}
+              options={POSITION_OPTIONS}
+            />
           </div>
-          <Input label="Phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(631) 555-1234" />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Bay Shore" />
+            <Input label="Phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(631) 555-1234" />
+          </div>
 
           {/* Training Path Assignment */}
           <div className="pt-3 border-t">
@@ -337,6 +388,19 @@ export default function EmployeesPage() {
       >
         {selectedEmployee && (
           <div className="space-y-4">
+            {/* Position */}
+            <div>
+              <Select
+                label="Position (floor job)"
+                value={selectedEmployee.position || ""}
+                onChange={(e) => updatePosition(selectedEmployee.id, e.target.value as Position | "")}
+                options={POSITION_OPTIONS}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Drives training path auto-assignment and floor scheduling. Separate from permission role.
+              </p>
+            </div>
+
             {/* Per-employee settings */}
             <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
               <label className="flex items-start gap-3 cursor-pointer">

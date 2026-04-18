@@ -12,13 +12,16 @@ export async function GET(request: NextRequest) {
   const role = request.nextUrl.searchParams.get("role");
   const location = request.nextUrl.searchParams.get("location");
 
+  const position = request.nextUrl.searchParams.get("position");
+
   let query = db
     .from("User")
-    .select("id, email, firstName, lastName, role, location, phone, hireDate, isActive, skipReviewTimer, createdAt")
+    .select("id, email, firstName, lastName, role, position, location, phone, hireDate, isActive, skipReviewTimer, createdAt")
     .order("lastName");
 
   if (role) query = query.eq("role", role);
   if (location) query = query.eq("location", location);
+  if (position) query = query.eq("position", position);
 
   const { data: users } = await query;
 
@@ -81,6 +84,7 @@ export async function POST(request: NextRequest) {
       firstName: data.firstName,
       lastName: data.lastName,
       role: data.role || "EMPLOYEE",
+      position: data.position || null,
       location: data.location || "",
       phone: data.phone || "",
       hireDate: data.hireDate ? new Date(data.hireDate).toISOString() : new Date().toISOString(),
